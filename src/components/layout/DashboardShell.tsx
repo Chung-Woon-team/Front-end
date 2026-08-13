@@ -7,7 +7,7 @@ export function DashboardShell() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-neutral-50">
+    <div className="flex h-screen animate-fade-in-up bg-neutral-50">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar onMenuClick={() => setIsSidebarOpen(true)} />

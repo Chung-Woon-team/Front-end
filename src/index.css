@@ -54,4 +54,28 @@
   --color-neutral-900: #141414;
   --color-neutral-950: #0a0a0a;
   --color-neutral: var(--color-neutral-50);
+
+  --animate-arrow-nudge: arrow-nudge 1.4s ease-in-out infinite;
+  --animate-fade-in-up: fade-in-up 0.5s ease-out both;
+}
+
+@keyframes arrow-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

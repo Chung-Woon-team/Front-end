@@ -1,4 +1,4 @@
-import type { VehicleMove, YardBlock, YardCell, YardView } from '../types/yard';
+import type { GridPoint, VehicleMove, YardBlock, YardCell, YardView } from '../types/yard';
 
 /**
  * 야드 격자는 팀 도면 그대로 56×56 이다. 가로·세로 모두 4 + 22 + 4 + 22 + 4.
@@ -26,6 +26,14 @@ export const LEGEND: YardView['legend'] = {
 
 function inBlock(row: number, col: number, bounds: YardBlock['bounds']): boolean {
   return row >= bounds.row0 && row <= bounds.row1 && col >= bounds.col0 && col <= bounds.col1;
+}
+
+// 실제 배포되면 백엔드(경로 계산 엔진)가 waypoints를 직접 계산해서 내려준다 —
+// 그때까지 mock 이 그 자리를 대신한다. 차량은 블록을 대각선으로 가로지르지 않고
+// 자기 행(row) 통로를 타고 나가서 격자 중앙의 십자 통로를 거쳐 도착 행 통로로 들어간다.
+function buildRouteWaypoints(origin: GridPoint, dest: GridPoint, gridCols: number): GridPoint[] {
+  const aisleCol = (gridCols - 1) / 2;
+  return [origin, { row: origin.row, col: aisleCol }, { row: dest.row, col: aisleCol }, dest];
 }
 
 /** 슬롯 ID 는 서버 규칙과 같다: 블록-절대행-절대열. 예) B01-R04-C07 */
@@ -113,8 +121,11 @@ export function relocateClosedBlocks(yardView: YardView): RelocationResult {
     const vehicleId = vehicleCell.vehicle_id!;
     moves.push({
       vehicle_id: vehicleId,
-      from: { row: vehicleCell.row, col: vehicleCell.col },
-      to: { row: target.row, col: target.col },
+      waypoints: buildRouteWaypoints(
+        { row: vehicleCell.row, col: vehicleCell.col },
+        { row: target.row, col: target.col },
+        yardView.grid.cols,
+      ),
     });
     target.state = 'MOVED';
     target.vehicle_id = vehicleId;

@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
-import { AlertTriangle, ImagePlus, Loader2, Send, X } from 'lucide-react';
+import { AlertTriangle, FileText, ImagePlus, Loader2, Send, X } from 'lucide-react';
 import { ConstraintCard } from '../components/instructions/ConstraintCard';
+import { extractBillOfLading } from '../api/billOfLading';
 import {
   approveConstraint,
   createInstruction,
@@ -8,6 +9,7 @@ import {
   parseConstraints,
   rejectConstraint,
 } from '../api/instructions';
+import type { BillOfLadingResult } from '../types/billOfLading';
 import type { ConstraintSummary } from '../types/instruction';
 
 const DEFAULT_AUTHOR = '야드관리자A';
@@ -23,6 +25,11 @@ export function InstructionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [siteImage, setSiteImage] = useState<File | null>(null);
   const [siteImagePreview, setSiteImagePreview] = useState<string | null>(null);
+  const [blFile, setBlFile] = useState<File | null>(null);
+  const [blPreview, setBlPreview] = useState<string | null>(null);
+  const [blResult, setBlResult] = useState<BillOfLadingResult | null>(null);
+  const [isExtractingBl, setIsExtractingBl] = useState(false);
+  const [blError, setBlError] = useState<string | null>(null);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -39,9 +46,37 @@ export function InstructionsPage() {
     setSiteImagePreview(null);
   };
 
+  const handleBlChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (blPreview) URL.revokeObjectURL(blPreview);
+    setBlFile(file);
+    setBlPreview(URL.createObjectURL(file));
+    setBlResult(null);
+    setBlError(null);
+    setIsExtractingBl(true);
+    try {
+      const result = await extractBillOfLading(file);
+      setBlResult(result);
+    } catch (err) {
+      setBlError(err instanceof Error ? err.message : '선하증권 인식에 실패했습니다.');
+    } finally {
+      setIsExtractingBl(false);
+    }
+  };
+
+  const handleBlRemove = () => {
+    if (blPreview) URL.revokeObjectURL(blPreview);
+    setBlFile(null);
+    setBlPreview(null);
+    setBlResult(null);
+    setBlError(null);
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!rawText.trim() || isSubmitting) return;
+    if (!rawText.trim() || !siteImage || !blResult || isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -55,6 +90,7 @@ export function InstructionsPage() {
       setRequiresConfirmation(outcome.requiresConfirmation);
       setRawText('');
       handleImageRemove();
+      handleBlRemove();
     } catch (err) {
       setError(err instanceof Error ? err.message : '지시 처리 중 오류가 발생했습니다.');
     } finally {
@@ -86,20 +122,82 @@ export function InstructionsPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="rounded-xl border border-neutral-200 bg-white p-5">
-        <label htmlFor="raw_text" className="block text-sm font-medium text-neutral-700">
-          작업 지시
-        </label>
-        <textarea
-          id="raw_text"
-          value={rawText}
-          onChange={(event) => setRawText(event.target.value)}
-          rows={3}
-          placeholder="예: 오늘 14시부터 B02 블록은 도색작업으로 폐쇄해줘."
-          className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-        />
+        <div>
+          <label className="block text-sm font-medium text-neutral-700">
+            선하증권 <span className="text-red-500">*</span>
+          </label>
+          <p className="mt-0.5 text-xs text-neutral-400">
+            업로드하면 AI가 선하증권 정보를 인식하고 차량을 등록합니다. 지시 전송 전 필수입니다.
+          </p>
+
+          <div className="mt-2 flex items-center gap-3">
+            {blPreview ? (
+              <div className="relative">
+                <img
+                  src={blPreview}
+                  alt="선하증권 미리보기"
+                  className="h-24 w-24 rounded-lg border border-neutral-200 object-cover"
+                />
+                {isExtractingBl ? (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40">
+                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleBlRemove}
+                    aria-label="선하증권 제거"
+                    className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <label
+                htmlFor="bl_image"
+                className={`flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed text-neutral-400 hover:border-primary-400 hover:text-primary-500 ${
+                  blError ? 'border-red-300' : 'border-neutral-300'
+                }`}
+              >
+                <FileText className="h-5 w-5" />
+                <span className="text-xs">선하증권 추가</span>
+              </label>
+            )}
+
+            <div className="text-xs">
+              {blFile && <p className="max-w-48 truncate text-neutral-500">{blFile.name}</p>}
+              {isExtractingBl && <p className="mt-1 text-neutral-400">인식 중…</p>}
+              {blResult && (
+                <p className="mt-1 font-medium text-emerald-600">
+                  {blResult.blNumber} · 차량 {blResult.vehicleCount}대 등록됨
+                </p>
+              )}
+              {blError && <p className="mt-1 text-red-600">{blError}</p>}
+            </div>
+          </div>
+
+          <input id="bl_image" type="file" accept="image/*" onChange={handleBlChange} className="hidden" />
+        </div>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-neutral-700">현장 이미지 (선택)</label>
+          <label htmlFor="raw_text" className="block text-sm font-medium text-neutral-700">
+            작업 지시
+          </label>
+          <textarea
+            id="raw_text"
+            value={rawText}
+            onChange={(event) => setRawText(event.target.value)}
+            rows={3}
+            placeholder="예: 오늘 14시부터 B02 블록은 도색작업으로 폐쇄해줘."
+            className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+          />
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-neutral-700">
+            상황사진 <span className="text-red-500">*</span>
+          </label>
           <p className="mt-0.5 text-xs text-neutral-400">
             참고용으로 화면에만 표시되며, 현재는 서버로 전송되지 않습니다.
           </p>
@@ -109,13 +207,13 @@ export function InstructionsPage() {
               <div className="relative">
                 <img
                   src={siteImagePreview}
-                  alt="현장 이미지 미리보기"
+                  alt="상황사진 미리보기"
                   className="h-24 w-24 rounded-lg border border-neutral-200 object-cover"
                 />
                 <button
                   type="button"
                   onClick={handleImageRemove}
-                  aria-label="이미지 제거"
+                  aria-label="상황사진 제거"
                   className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700"
                 >
                   <X className="h-3.5 w-3.5" />
@@ -127,7 +225,7 @@ export function InstructionsPage() {
                 className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 text-neutral-400 hover:border-primary-400 hover:text-primary-500"
               >
                 <ImagePlus className="h-5 w-5" />
-                <span className="text-xs">이미지 추가</span>
+                <span className="text-xs">사진 추가</span>
               </label>
             )}
             {siteImage && <span className="max-w-48 truncate text-xs text-neutral-500">{siteImage.name}</span>}
@@ -151,7 +249,7 @@ export function InstructionsPage() {
 
           <button
             type="submit"
-            disabled={!rawText.trim() || isSubmitting}
+            disabled={!rawText.trim() || !siteImage || !blResult || isSubmitting}
             className="flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-40 sm:w-auto"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

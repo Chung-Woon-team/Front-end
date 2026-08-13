@@ -5,14 +5,19 @@ import logoHdg from '../../assets/logo_HDG.webp';
 
 interface AuthLayoutProps {
   children: ReactNode;
+  isExiting?: boolean;
 }
 
-export function AuthLayout({ children }: AuthLayoutProps) {
+export function AuthLayout({ children, isExiting = false }: AuthLayoutProps) {
   const { language, toggleLanguage } = useLanguage();
   const text = onboardingText[language];
 
   return (
-    <div className="relative flex h-screen w-full overflow-hidden bg-neutral-50">
+    <div
+      className={`relative flex h-screen w-full overflow-hidden bg-neutral-50 transition-all duration-300 ease-in ${
+        isExiting ? 'scale-[0.98] opacity-0' : 'scale-100 opacity-100'
+      }`}
+    >
       <button
         type="button"
         onClick={toggleLanguage}
@@ -37,18 +42,28 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           }}
         />
 
-        <div className="relative flex items-center gap-3">
+        <div className="relative flex animate-fade-in-up items-center gap-3">
           <img src={logoHdg} alt="Hyundai Glovis" className="h-7 w-auto brightness-0 invert" />
           <span className="text-lg font-semibold tracking-tight">AutoYard Copilot</span>
         </div>
 
         <div className="relative flex flex-1 flex-col items-start justify-center">
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
+          <span
+            className="inline-flex animate-fade-in-up items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80"
+            style={{ animationDelay: '120ms' }}
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             {text.badge}
           </span>
-          <h1 className="mt-6 max-w-md text-4xl font-bold leading-tight">{text.headline}</h1>
-          <p className="mt-4 max-w-sm text-sm text-white/70">{text.description}</p>
+          <h1
+            className="mt-6 max-w-md animate-fade-in-up text-4xl font-bold leading-tight"
+            style={{ animationDelay: '220ms' }}
+          >
+            {text.headline}
+          </h1>
+          <p className="mt-4 max-w-sm animate-fade-in-up text-sm text-white/70" style={{ animationDelay: '320ms' }}>
+            {text.description}
+          </p>
         </div>
       </div>
 
