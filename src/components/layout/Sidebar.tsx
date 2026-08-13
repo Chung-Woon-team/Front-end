@@ -8,11 +8,12 @@ import {
   Home,
   LogOut,
   MessageSquareText,
-  RefreshCw,
   RotateCcw,
   Settings,
 } from 'lucide-react';
 import logoHdg from '../../assets/img/logo_HDG.webp';
+import { fetchDashboard } from '../../api/dashboard';
+import type { DashboardAiEngine } from '../../types/dashboard';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: '대시보드', icon: Home },
@@ -34,12 +35,21 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
+  const [aiEngine, setAiEngine] = useState<DashboardAiEngine | null>(null);
 
   useEffect(() => {
     const active = NAV_ITEMS.find((item) => location.pathname.startsWith(item.to));
     const el = active ? itemRefs.current[active.to] : null;
     setIndicator(el ? { top: el.offsetTop, height: el.offsetHeight } : null);
   }, [location.pathname]);
+
+  useEffect(() => {
+    fetchDashboard()
+      .then((data) => setAiEngine(data.ai_engine))
+      .catch(() => {
+        // Sidebar status is decorative — silently keep the "확인 중" fallback on failure.
+      });
+  }, []);
 
   return (
     <>
@@ -91,17 +101,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="px-4">
           <div className="rounded-xl bg-white/10 p-4">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary-600">
-                <RefreshCw className="h-4 w-4" />
-              </div>
-              <span className="text-sm font-medium">AI 엔진 상태: 정상</span>
+              <div
+                className={`h-8 w-8 shrink-0 rounded-full ${
+                  !aiEngine ? 'bg-white/20' : aiEngine.status.toUpperCase() === 'UP' ? 'bg-emerald-500' : 'bg-red-500'
+                }`}
+              />
+              <span className="text-sm font-medium">AI 엔진 상태: {aiEngine?.status_label ?? '확인 중'}</span>
             </div>
-            <button
-              type="button"
-              className="mt-3 w-full rounded-lg bg-white py-2 text-sm font-semibold text-primary-900 hover:bg-white/90"
-            >
-              자세히 보기
-            </button>
           </div>
         </div>
 

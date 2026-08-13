@@ -18,8 +18,10 @@ type Tone = 'good' | 'warn' | 'bad' | 'neutral';
 
 function toneFor(status: string): Tone {
   const s = status.toUpperCase();
-  if (s.includes('APPROV') || s.includes('OPERAT') || s.includes('NORMAL') || s.includes('COMPLETE')) return 'good';
-  if (s.includes('REJECT') || s.includes('CLOSED') || s.includes('VIOLATION')) return 'bad';
+  if (s.includes('APPROV') || s.includes('OPERAT') || s.includes('NORMAL') || s.includes('COMPLETE') || s === 'UP')
+    return 'good';
+  if (s.includes('REJECT') || s.includes('CLOSED') || s.includes('VIOLATION') || s === 'DOWN' || s.includes('FAIL'))
+    return 'bad';
   if (s.includes('PENDING') || s.includes('WAIT') || s.includes('HOLD') || s.includes('CONGEST')) return 'warn';
   return 'neutral';
 }
