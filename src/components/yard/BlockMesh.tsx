@@ -24,13 +24,17 @@ export function BlockMesh({ block, gridRows, gridCols }: BlockMeshProps) {
           opacity={block.closed ? 0.4 : 0.55}
         />
       </mesh>
-      <Html position={[0, 0.3, -depth / 2 - 0.2]} center distanceFactor={9}>
+      <Html position={[0, 0.3, 0]} center>
         <div
           style={{
-            color: block.closed ? '#fca5a5' : '#cbd5e1',
-            fontSize: 11,
-            fontWeight: 600,
+            color: block.closed ? '#fca5a5' : '#e2e8f0',
+            backgroundColor: 'rgba(5, 7, 13, 0.55)',
+            padding: '3px 10px',
+            borderRadius: 6,
+            fontSize: 14,
+            fontWeight: 700,
             whiteSpace: 'nowrap',
+            pointerEvents: 'none',
           }}
         >
           {block.block_id}
