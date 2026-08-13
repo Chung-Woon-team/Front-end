@@ -8,21 +8,18 @@ import {
   Home,
   LogOut,
   MessageSquareText,
-  RotateCcw,
-  Settings,
 } from 'lucide-react';
 import logoHdg from '../../assets/img/logo_HDG.webp';
 import { fetchDashboard } from '../../api/dashboard';
 import type { DashboardAiEngine } from '../../types/dashboard';
 
+// 리비전 로그·설정은 아직 기능 개발 전이라 사이드바에서만 숨긴다 (라우트 자체는 유지).
 const NAV_ITEMS = [
   { to: '/dashboard', label: '대시보드', icon: Home },
   { to: '/instructions', label: '지시 관리', icon: MessageSquareText },
   { to: '/yard', label: '야드 배치', icon: Grid3x3 },
   { to: '/kpi', label: 'KPI', icon: ChartColumn },
   { to: '/briefing', label: '브리핑', icon: FileText },
-  { to: '/revisions', label: '리비전 로그', icon: RotateCcw },
-  { to: '/settings', label: '설정', icon: Settings },
 ];
 
 interface SidebarProps {
