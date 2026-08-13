@@ -14,6 +14,12 @@ RUN npm ci
 
 COPY . .
 
+# Vite 환경변수는 빌드 시점에 번들에 박힌다. 런타임(Cloud Run 환경변수)으로는 못 바꾼다.
+# 그래서 API 주소는 여기서 넣어야 한다:
+#   docker build --build-arg VITE_API_BASE_URL=https://<API URL> .
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 # tsc -b && vite build. 타입 에러가 있으면 여기서 배포가 멈춘다.
 RUN npm run build
 
