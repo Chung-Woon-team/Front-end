@@ -63,12 +63,15 @@ npm run preview    # 빌드 결과 로컬 미리보기
 결과물 `dist/` 만 nginx(alpine) 로 서빙. `nginx.conf` 가 **8080 포트**에서 듣고,
 `try_files $uri $uri/ /index.html` 로 SPA 새로고침 404 를 막는다.
 
-**API 주소는 이미지 빌드 시점에 넣어야 한다.** Vite 환경변수는 번들에 박히므로
-Cloud Run 의 런타임 환경변수로는 바뀌지 않는다. `src/api/client.ts` 의 `API_BASE_URL` 이
-`VITE_API_BASE_URL` 을 읽고, 없으면 `http://localhost:8080` 으로 떨어진다.
+**API 주소는 이미지 빌드 시점에 번들에 박힌다.** Cloud Run 의 런타임 환경변수로는 바뀌지 않는다.
+`src/api/client.ts` 의 `API_BASE_URL` 이 `VITE_API_BASE_URL` 을 읽으며, 루트의 `.env` (커밋됨) 에
+현재 배포된 백엔드 `https://back-end-git-145786632792.asia-northeast3.run.app` 가 들어있어
+`npm run dev` / `npm run build` 모두 별도 설정 없이 이 값을 쓴다.
+
+다른 백엔드로 배포해야 할 때만 `--build-arg` 로 덮어쓰면 된다:
 
 ```bash
-docker build --build-arg VITE_API_BASE_URL=https://<API URL> \
+docker build --build-arg VITE_API_BASE_URL=https://<다른 API URL> \
   -t asia-northeast3-docker.pkg.dev/<PROJECT>/chungwoon/front:latest .
 docker push asia-northeast3-docker.pkg.dev/<PROJECT>/chungwoon/front:latest
 gcloud run deploy chungwoon-front \

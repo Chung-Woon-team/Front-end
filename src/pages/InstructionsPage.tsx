@@ -3,11 +3,12 @@ import { AlertTriangle, Loader2, Send } from 'lucide-react';
 import { ConstraintCard } from '../components/instructions/ConstraintCard';
 import {
   approveConstraint,
-  fetchInstruction,
+  createInstruction,
+  fetchConstraints,
+  parseConstraints,
   rejectConstraint,
-  submitInstruction,
 } from '../api/instructions';
-import type { InstructionResult } from '../types/instruction';
+import type { ConstraintSummary } from '../types/instruction';
 
 const DEFAULT_AUTHOR = '야드관리자A';
 
@@ -15,36 +16,46 @@ export function InstructionsPage() {
   const [rawText, setRawText] = useState('');
   const [author, setAuthor] = useState(DEFAULT_AUTHOR);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<InstructionResult | null>(null);
+  const [instructionId, setInstructionId] = useState<string | null>(null);
+  const [constraints, setConstraints] = useState<ConstraintSummary[]>([]);
+  const [unresolved, setUnresolved] = useState<string[]>([]);
+  const [requiresConfirmation, setRequiresConfirmation] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!rawText.trim() || isSubmitting) return;
     setIsSubmitting(true);
+    setError(null);
     try {
-      const response = await submitInstruction({ raw_text: rawText.trim(), author });
-      setResult(response);
+      const instruction = await createInstruction({ rawText: rawText.trim(), author });
+      const outcome = await parseConstraints(instruction.instructionId);
+      const allConstraints = await fetchConstraints();
+
+      setInstructionId(instruction.instructionId);
+      setConstraints(allConstraints.filter((c) => c.instructionId === instruction.instructionId));
+      setUnresolved(outcome.unresolved);
+      setRequiresConfirmation(outcome.requiresConfirmation);
       setRawText('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '지시 처리 중 오류가 발생했습니다.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const refresh = async (instructionId: string) => {
-    const response = await fetchInstruction(instructionId);
-    setResult(response);
+  const replaceConstraint = (updated: ConstraintSummary) => {
+    setConstraints((prev) => prev.map((c) => (c.constraintId === updated.constraintId ? updated : c)));
   };
 
   const handleApprove = async (constraintId: string) => {
-    if (!result) return;
-    await approveConstraint(constraintId, author);
-    await refresh(result.instruction.instruction_id);
+    const updated = await approveConstraint(constraintId, author);
+    replaceConstraint(updated);
   };
 
   const handleReject = async (constraintId: string, reason: string) => {
-    if (!result) return;
-    await rejectConstraint(constraintId, author, reason);
-    await refresh(result.instruction.instruction_id);
+    const updated = await rejectConstraint(constraintId, author, reason);
+    replaceConstraint(updated);
   };
 
   return (
@@ -93,29 +104,33 @@ export function InstructionsPage() {
         </div>
       </form>
 
-      {result && (
+      {error && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {instructionId && (
         <div className="mt-8 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-neutral-700">
-              감지된 제약 조건 <span className="text-neutral-400">({result.constraints.length})</span>
+              감지된 제약 조건 <span className="text-neutral-400">({constraints.length})</span>
             </h2>
-            <span className="text-xs text-neutral-400">{result.instruction.instruction_id}</span>
+            <span className="text-xs text-neutral-400">{instructionId}</span>
           </div>
 
-          {result.requires_confirmation && result.unresolved.length > 0 && (
+          {requiresConfirmation && unresolved.length > 0 && (
             <div className="flex items-start gap-3 rounded-lg border border-secondary-200 bg-secondary-50 p-4">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-secondary-600" />
               <div>
                 <p className="text-sm font-medium text-secondary-800">확인이 필요한 표현이 있습니다</p>
-                <p className="mt-0.5 text-sm text-secondary-700">{result.unresolved.join(', ')}</p>
+                <p className="mt-0.5 text-sm text-secondary-700">{unresolved.join(', ')}</p>
               </div>
             </div>
           )}
 
           <div className="space-y-3">
-            {result.constraints.map((constraint) => (
+            {constraints.map((constraint) => (
               <ConstraintCard
-                key={constraint.constraint_id}
+                key={constraint.constraintId}
                 constraint={constraint}
                 onApprove={handleApprove}
                 onReject={handleReject}
