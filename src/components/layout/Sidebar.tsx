@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   ChartColumn,
   CircleQuestionMark,
@@ -11,7 +12,7 @@ import {
   RotateCcw,
   Settings,
 } from 'lucide-react';
-import logoHdg from '../../assets/logo_HDG.webp';
+import logoHdg from '../../assets/img/logo_HDG.webp';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: '대시보드', icon: Home },
@@ -30,6 +31,15 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
+  const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const active = NAV_ITEMS.find((item) => location.pathname.startsWith(item.to));
+    const el = active ? itemRefs.current[active.to] : null;
+    setIndicator(el ? { top: el.offsetTop, height: el.offsetHeight } : null);
+  }, [location.pathname]);
 
   return (
     <>
@@ -50,15 +60,25 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
         </div>
 
-        <nav className="mt-8 flex-1 space-y-1 px-4">
+        <nav className="relative mt-8 flex-1 space-y-1 px-4">
+          {indicator && (
+            <div
+              className="absolute left-4 right-4 rounded-lg bg-secondary-600 transition-[transform,height] duration-300 ease-out"
+              style={{ transform: `translateY(${indicator.top}px)`, height: indicator.height }}
+              aria-hidden="true"
+            />
+          )}
           {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
+              ref={(el) => {
+                itemRefs.current[to] = el;
+              }}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive ? 'bg-secondary-600 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                `relative z-10 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive ? 'text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
                 }`
               }
             >

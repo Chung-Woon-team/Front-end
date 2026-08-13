@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useLanguage } from '../../hooks/useLanguage';
 import { onboardingText } from '../../i18n/onboarding';
-import logoHdg from '../../assets/logo_HDG.webp';
+import logoHdg from '../../assets/img/logo_HDG.webp';
 
 interface AuthLayoutProps {
   children: ReactNode;
