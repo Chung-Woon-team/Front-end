@@ -1,6 +1,7 @@
 import { fetchYardOccupancy } from './yardApi';
 import { createPlan, fetchPlan } from './plan';
 import { LEGEND } from './yard';
+import type { ExecutionResult } from '../types/plan';
 import type { GridPoint, PathPoint, VehicleMove, YardBlock, YardCell, YardView } from '../types/yard';
 
 /** 슬롯 ID 는 서버 규칙과 같다: 블록-절대행-절대열. 예) B01-R04-C07 */
@@ -74,8 +75,11 @@ export interface LiveRelocationResult {
 // 실제 알고리즘 실행: POST /api/plans 가 현재 백엔드 상태(승인된 제약 등) 기준으로
 // 재배치를 계산해서 돌려준다. 이동 경로(path)는 백엔드가 계산한 실제 좌표라서
 // 프론트에서 경로를 만들어낼 필요가 없다.
-export async function runLiveRelocation(yardView: YardView): Promise<LiveRelocationResult> {
-  const execution = await createPlan({});
+export async function runLiveRelocation(
+  yardView: YardView,
+  existingExecution?: ExecutionResult,
+): Promise<LiveRelocationResult> {
+  const execution = existingExecution ?? (await createPlan({}));
   const detail = await fetchPlan(execution.plan_version).catch(() => null);
 
   const cellByPos = new Map(yardView.cells.map((c) => [`${c.row}-${c.col}`, { ...c }]));
