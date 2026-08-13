@@ -1,13 +1,29 @@
 import type { ReactNode } from 'react';
 import { Activity, LayoutGrid, ShieldCheck } from 'lucide-react';
+import { useLanguage } from '../../hooks/useLanguage';
+import { onboardingText } from '../../i18n/onboarding';
 
 interface AuthLayoutProps {
   children: ReactNode;
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
+  const { language, toggleLanguage } = useLanguage();
+  const text = onboardingText[language];
+
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-neutral-50">
+    <div className="relative flex h-screen w-full overflow-hidden bg-neutral-50">
+      <button
+        type="button"
+        onClick={toggleLanguage}
+        aria-label="Toggle language"
+        className="absolute right-4 top-4 z-10 flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 shadow-sm transition hover:bg-neutral-50 lg:right-6 lg:top-6"
+      >
+        <span className={language === 'ko' ? 'text-primary-600' : 'text-neutral-400'}>한글</span>
+        <span className="text-neutral-300">/</span>
+        <span className={language === 'en' ? 'text-primary-600' : 'text-neutral-400'}>EN</span>
+      </button>
+
       <div
         className="relative hidden w-[54%] flex-col justify-between overflow-hidden bg-gradient-to-br from-primary-950 via-primary-900 to-primary-700 px-16 py-12 text-white lg:flex"
         style={{ clipPath: 'polygon(0 0, 100% 0, 92% 100%, 0 100%)' }}
@@ -31,25 +47,20 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <div className="relative">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            AI YARD ENGINE ONLINE
+            {text.badge}
           </span>
-          <h1 className="mt-6 max-w-md text-4xl font-bold leading-tight">
-            Turn one instruction into an optimized yard relocation plan.
-          </h1>
-          <p className="mt-4 max-w-sm text-sm text-white/70">
-            Parse natural-language yard instructions into structured constraints, then validate
-            AI-generated relocation plans with real-time before/after KPIs.
-          </p>
+          <h1 className="mt-6 max-w-md text-4xl font-bold leading-tight">{text.headline}</h1>
+          <p className="mt-4 max-w-sm text-sm text-white/70">{text.description}</p>
         </div>
 
         <div className="relative flex items-center gap-6 text-xs text-white/60">
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="h-4 w-4" />
-            Hyundai Glovis Partner
+            {text.partner}
           </span>
           <span className="flex items-center gap-1.5">
             <Activity className="h-4 w-4" />
-            Real-time Sync
+            {text.sync}
           </span>
         </div>
       </div>
