@@ -3,33 +3,39 @@ import { ArrowDown, ArrowUp, BarChart3, Loader2, Minus, RefreshCw } from 'lucide
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { fetchPlanKpi } from '../api/kpi';
 import { usePlanVersion } from '../hooks/usePlanVersion';
-import type { HighlightTone, KpiMetric, KpiResponse } from '../types/kpi';
+import type { KpiMetric, KpiResponse, KpiTone } from '../types/kpi';
 
-// 화면 2 — KPI 전후 비교 (docs/FRONTEND_CONTRACT.md:82, 장표 6·9쪽)
+// 화면 2 — KPI 전후 비교 (KPI·브리핑 API 단일 계약서 v1.0 3.1, 장표 6·9쪽)
 //
-// 이 화면은 아무것도 계산하지 않고 문자열도 조립하지 않는다. label·delta_label·unit 은
-// 서버가 만들어 보낸 표시용 값이라 그대로 찍고, better·tone 은 "무슨 색이냐 / 화살표가
-// 어느 쪽이냐" 를 고르는 데만 쓴다 (FRONTEND_CONTRACT.md:162 — enum→한글 매핑 금지).
+// 이 화면은 아무것도 계산하지 않고 문자열도 조립하지 않는다. label·delta_label·unit_label·
+// status_label 은 서버가 만들어 보낸 표시용 값이라 그대로 찍고, tone 은 "무슨 색이냐" 를,
+// 증감 부호는 "화살표가 어느 쪽이냐" 를 고르는 데만 쓴다 (enum→한글 매핑 금지).
 //
-// ⚠️ 서버가 non_null 직렬화라 값이 없으면 키가 통째로 빠진다. 기준판(baseline)이면
-//    before·index_before·delta_label 이 아예 안 온다. 전부 옵셔널로 다루고 화면에는
-//    '비교할 이전 판 없음' 으로 대체한다 — undefined 가 찍히면 안 된다.
+// ⚠️ unit 과 unit_label 은 다르다. unit 은 'COUNT'/'VEHICLE'/'MILLIS'/'METER' 같은 **코드값**이고
+//    화면에 찍어야 하는 건 unit_label('건'/'대'/'ms'/'m') 이다. 헷갈리면 "COUNT" 가 그대로 노출된다.
+//
+// ⚠️ 서버가 non_null 직렬화라 값이 없으면 키가 통째로 빠진다. comparable=false(기준판)면
+//    before·index_before·delta_* 가 아예 안 온다. 전부 옵셔널로 다루고 화면에는 대체 문구를
+//    넣는다 — undefined 가 찍히면 안 된다.
+//
+// ⚠️ 지표·하이라이트 순서는 서버가 고정해서 보낸다(평균 이동거리 → 재취급 Proxy → 계획 유지율).
+//    프론트에서 정렬하지 않는다.
 
-/** 서버의 better 와 실제 증감을 합쳐 낸 판정. 색을 고르는 데만 쓴다. */
-type Trend = 'IMPROVED' | 'WORSENED' | 'FLAT' | 'NO_BASELINE';
-
-/** 값이 어느 쪽으로 움직였나. 화살표 모양만 정한다. */
+/** 값이 어느 쪽으로 움직였나. 화살표 모양만 정한다. 색은 서버의 tone 이 정한다. */
 type Direction = 'UP' | 'DOWN' | 'FLAT' | 'NONE';
 
 interface MetricRow {
   key: string;
   label: string;
+  unit_label: string;
   before?: number;
   after: number;
   index_before?: number;
-  index_after: number;
+  index_after?: number;
+  delta_abs?: number;
+  delta_pct?: number;
   delta_label?: string;
-  trend: Trend;
+  tone: KpiTone;
   direction: Direction;
 }
 
@@ -43,53 +49,57 @@ interface LoadedKpi {
 
 const BEFORE_BAR_COLOR = '#B0B2B3'; // neutral-400 — 비교 기준이라 늘 중립 회색
 
-const AFTER_BAR_COLOR: Record<Trend, string> = {
-  IMPROVED: '#10B981', // emerald-500
-  WORSENED: '#EF4444', // red-500
-  FLAT: '#8E8F90', // neutral-500
-  NO_BASELINE: '#26267A', // primary-500 — 좋다/나쁘다를 말할 근거가 없는 단독 값
+/** 막대·점·글자 색은 전부 서버가 준 tone 하나로 정한다. better 로 개선/악화를 추론하지 않는다. */
+const TONE_BAR_COLOR: Record<KpiTone, string> = {
+  GOOD: '#10B981', // emerald-500
+  WARN: '#FF8326', // secondary-500
+  NEUTRAL: '#8E8F90', // neutral-500
 };
 
-const TREND_TEXT_CLASS: Record<Trend, string> = {
-  IMPROVED: 'text-emerald-600',
-  WORSENED: 'text-red-600',
-  FLAT: 'text-neutral-500',
-  NO_BASELINE: 'text-neutral-400',
+const TONE_TEXT_CLASS: Record<KpiTone, string> = {
+  GOOD: 'text-emerald-600',
+  WARN: 'text-secondary-700',
+  NEUTRAL: 'text-neutral-500',
 };
 
-const TONE_DOT_CLASS: Record<HighlightTone, string> = {
+const TONE_DOT_CLASS: Record<KpiTone, string> = {
   GOOD: 'bg-emerald-500',
   WARN: 'bg-secondary-500',
-  BAD: 'bg-red-500',
   NEUTRAL: 'bg-neutral-300',
 };
 
-const TONE_VALUE_CLASS: Record<HighlightTone, string> = {
+const TONE_VALUE_CLASS: Record<KpiTone, string> = {
   GOOD: 'text-emerald-600',
   WARN: 'text-secondary-700',
-  BAD: 'text-red-600',
   NEUTRAL: 'text-neutral-900',
 };
 
+/** 배지 '색'만 고르는 표다. 배지에 찍는 글자는 서버의 status_label 을 그대로 쓴다. */
+const STATUS_BADGE_CLASS: Record<KpiResponse['status'], string> = {
+  DRAFT: 'bg-neutral-100 text-neutral-600',
+  PENDING_APPROVAL: 'bg-secondary-50 text-secondary-700',
+  APPROVED: 'bg-emerald-50 text-emerald-700',
+  REJECTED: 'bg-red-50 text-red-700',
+};
+
 const NUMBER_FORMAT = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 });
+/** delta_abs·delta_pct 는 증감이라 부호가 보여야 읽힌다. */
+const DELTA_FORMAT = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1, signDisplay: 'exceptZero' });
 
-function readTrend(metric: KpiMetric): { trend: Trend; direction: Direction } {
-  // 실측값이 있으면 실측값으로, 없으면 지수로 증감 방향을 본다.
-  // 둘 다 없으면 비교 대상이 없는 기준판이다.
-  const pair =
-    metric.before !== undefined
-      ? { before: metric.before, after: metric.after }
-      : metric.index_before !== undefined
-        ? { before: metric.index_before, after: metric.index_after }
-        : null;
+function readDirection(metric: KpiMetric): Direction {
+  // 서버가 delta_abs 를 주면 그 부호가 곧 이동 방향이다.
+  // 없으면 실측값, 그것도 없으면 지수로 본다. 전부 없으면 비교 대상이 없는 기준판이다.
+  const delta =
+    metric.delta_abs ??
+    (metric.before !== undefined
+      ? metric.after - metric.before
+      : metric.index_before !== undefined && metric.index_after !== undefined
+        ? metric.index_after - metric.index_before
+        : undefined);
 
-  if (pair === null) return { trend: 'NO_BASELINE', direction: 'NONE' };
-  if (pair.after === pair.before) return { trend: 'FLAT', direction: 'FLAT' };
-
-  const decreased = pair.after < pair.before;
-  // "줄어든 게 좋은 지표인가" 는 우리가 판단하지 않는다. 서버의 better 만 본다.
-  const improved = metric.better === 'LOWER' ? decreased : !decreased;
-  return { trend: improved ? 'IMPROVED' : 'WORSENED', direction: decreased ? 'DOWN' : 'UP' };
+  if (delta === undefined) return 'NONE';
+  if (delta === 0) return 'FLAT';
+  return delta > 0 ? 'UP' : 'DOWN';
 }
 
 function TrendIcon({ direction }: { direction: Direction }) {
@@ -104,6 +114,22 @@ function Spinner({ minHeight }: { minHeight: string }) {
     <div className={`flex ${minHeight} items-center justify-center text-neutral-300`}>
       <Loader2 className="h-5 w-5 animate-spin" />
     </div>
+  );
+}
+
+/** 증감 상세(delta_abs · delta_pct). 둘 다 없으면 아무것도 그리지 않는다. */
+function DeltaDetail({ row, className }: { row: MetricRow; className: string }) {
+  if (row.delta_abs === undefined && row.delta_pct === undefined) return null;
+  return (
+    <span className={className}>
+      {row.delta_abs !== undefined && (
+        <>
+          {DELTA_FORMAT.format(row.delta_abs)} {row.unit_label}
+        </>
+      )}
+      {row.delta_abs !== undefined && row.delta_pct !== undefined && ' · '}
+      {row.delta_pct !== undefined && <>{DELTA_FORMAT.format(row.delta_pct)}%</>}
+    </span>
   );
 }
 
@@ -136,6 +162,7 @@ export function KpiPage() {
       })
       .catch((err: unknown) => {
         // 엔드포인트가 아직 없으면 404/503 이 온다. 배너만 띄우고 화면은 그대로 둔다.
+        // 판에 KPI 가 없는 건 에러가 아니라 has_kpi=false 인 정상 200 이다.
         if (!cancelled)
           setLoadedKpi({
             planVersion: requestedVersion,
@@ -158,30 +185,34 @@ export function KpiPage() {
   const kpi = isKpiCurrent && loadedKpi !== null ? loadedKpi.data : null;
   const kpiError = isKpiCurrent && loadedKpi !== null ? loadedKpi.error : null;
 
+  // metrics·highlights 는 이제 항상 배열이지만, 응답이 아직 없을 때를 위해 기본값을 둔다.
   const metrics = useMemo(() => kpi?.metrics ?? [], [kpi]);
   const highlights = kpi?.highlights ?? [];
-  const unit = kpi?.unit ?? '';
+  const unitLabel = kpi?.unit_label ?? '';
+  // 전후 비교 가능 여부는 index_before 유무로 추측하지 않고 서버 플래그를 그대로 믿는다.
+  const comparable = kpi?.comparable ?? false;
 
   const rows = useMemo<MetricRow[]>(
     () =>
-      metrics.map((metric) => {
-        const { trend, direction } = readTrend(metric);
-        return {
-          key: metric.key,
-          label: metric.label,
-          before: metric.before,
-          after: metric.after,
-          index_before: metric.index_before,
-          index_after: metric.index_after,
-          delta_label: metric.delta_label,
-          trend,
-          direction,
-        };
-      }),
+      // 서버가 준 순서(평균 이동거리 → 재취급 Proxy → 계획 유지율)를 그대로 쓴다. 정렬 금지.
+      metrics.map((metric) => ({
+        key: metric.key,
+        label: metric.label,
+        unit_label: metric.unit_label,
+        before: metric.before,
+        after: metric.after,
+        index_before: metric.index_before,
+        index_after: metric.index_after,
+        delta_abs: metric.delta_abs,
+        delta_pct: metric.delta_pct,
+        delta_label: metric.delta_label,
+        tone: metric.tone,
+        direction: readDirection(metric),
+      })),
     [metrics],
   );
 
-  const hasBaseline = rows.some((row) => row.index_before !== undefined);
+  const hasIndexData = rows.some((row) => row.index_after !== undefined || row.index_before !== undefined);
   const isBusy = isPlansLoading || isKpiLoading;
 
   const handleRefresh = () => {
@@ -195,6 +226,12 @@ export function KpiPage() {
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">KPI</h1>
           <p className="mt-1 text-sm text-neutral-500">재배치 전후를 기준판 100 지수로 비교합니다.</p>
+          {kpi !== null && (
+            <p className="mt-1 text-xs text-neutral-400">
+              <span>현재 판 {kpi.plan_version}</span>
+              {kpi.based_on_version !== undefined && <span className="ml-2">이전 판: {kpi.based_on_version}</span>}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -214,6 +251,13 @@ export function KpiPage() {
               ))
             )}
           </select>
+
+          {kpi !== null && (
+            // 배지 글자는 서버가 만든 한국어 status_label 을 그대로 쓴다.
+            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_BADGE_CLASS[kpi.status]}`}>
+              {kpi.status_label}
+            </span>
+          )}
 
           <button
             type="button"
@@ -242,14 +286,24 @@ export function KpiPage() {
         <div className="rounded-xl border border-neutral-200 bg-white p-10 text-center text-sm text-neutral-400">
           생성된 판이 없습니다.
         </div>
+      ) : isKpiLoading ? (
+        <div className="rounded-xl border border-neutral-200 bg-white p-5">
+          <Spinner minHeight="min-h-[320px]" />
+        </div>
+      ) : kpi !== null && !kpi.has_kpi ? (
+        // has_kpi=false 는 에러가 아니라 정상 200 이다. metrics·highlights 는 빈 배열로 온다.
+        <div className="rounded-xl border border-neutral-200 bg-white p-10 text-center">
+          <BarChart3 className="mx-auto h-6 w-6 text-neutral-300" />
+          <p className="mt-2 text-sm text-neutral-500">이 판에는 KPI 가 아직 없습니다.</p>
+          <p className="mt-1 text-xs text-neutral-400">
+            {kpi.plan_version} · {kpi.status_label}
+          </p>
+        </div>
       ) : (
         <>
-          {isKpiLoading ? (
-            <div className="rounded-xl border border-neutral-200 bg-white p-4">
-              <Spinner minHeight="min-h-[72px]" />
-            </div>
-          ) : highlights.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {highlights.length > 0 ? (
+            // 하이라이트도 서버 순서 고정: hard_violations → changed_vehicles → calc_millis
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {highlights.map((highlight) => (
                 <div key={highlight.key} className="rounded-xl border border-neutral-200 bg-white p-4">
                   <div className="flex items-center gap-2">
@@ -264,7 +318,8 @@ export function KpiPage() {
                     >
                       {NUMBER_FORMAT.format(highlight.value)}
                     </span>
-                    <span className="text-sm text-neutral-500">{highlight.unit}</span>
+                    {/* unit(코드값) 이 아니라 unit_label 을 찍는다. */}
+                    <span className="text-sm text-neutral-500">{highlight.unit_label}</span>
                   </p>
                 </div>
               ))}
@@ -280,15 +335,13 @@ export function KpiPage() {
               <div>
                 <h2 className="text-base font-bold text-neutral-900">전후 비교 지수</h2>
                 <p className="text-sm text-neutral-500">
-                  기준판을 100 으로 놓은 상대 지수입니다. 거리 지표 실측 단위: {unit || '–'}
+                  기준판을 100 으로 놓은 상대 지수입니다. 거리 지표 실측 단위: {unitLabel || '–'}
                 </p>
               </div>
               <BarChart3 className="h-5 w-5 shrink-0 text-neutral-300" />
             </div>
 
-            {isKpiLoading ? (
-              <Spinner minHeight="min-h-[320px]" />
-            ) : rows.length > 0 ? (
+            {rows.length > 0 && hasIndexData ? (
               <>
                 <div className="mt-4 h-[320px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -329,11 +382,14 @@ export function KpiPage() {
                                     style={{ backgroundColor: BEFORE_BAR_COLOR }}
                                   />
                                   이전 판{' '}
-                                  {row.index_before !== undefined ? (
+                                  {comparable && row.index_before !== undefined ? (
                                     <span className="text-neutral-900">
-                                      지수 {row.index_before}
+                                      지수 {NUMBER_FORMAT.format(row.index_before)}
                                       {row.before !== undefined && (
-                                        <span className="text-neutral-400"> · 실측 {NUMBER_FORMAT.format(row.before)}</span>
+                                        <span className="text-neutral-400">
+                                          {' '}
+                                          · 실측 {NUMBER_FORMAT.format(row.before)} {row.unit_label}
+                                        </span>
                                       )}
                                     </span>
                                   ) : (
@@ -343,37 +399,44 @@ export function KpiPage() {
                                 <p className="flex items-center gap-1.5 text-neutral-600">
                                   <span
                                     className="h-2 w-2 shrink-0 rounded-full"
-                                    style={{ backgroundColor: AFTER_BAR_COLOR[row.trend] }}
+                                    style={{ backgroundColor: TONE_BAR_COLOR[row.tone] }}
                                   />
                                   현재 판{' '}
                                   <span className="text-neutral-900">
-                                    지수 {row.index_after}
-                                    <span className="text-neutral-400"> · 실측 {NUMBER_FORMAT.format(row.after)}</span>
+                                    {row.index_after !== undefined && <>지수 {NUMBER_FORMAT.format(row.index_after)}</>}
+                                    <span className="text-neutral-400">
+                                      {row.index_after !== undefined && ' · '}
+                                      실측 {NUMBER_FORMAT.format(row.after)} {row.unit_label}
+                                    </span>
                                   </span>
                                 </p>
                               </div>
-                              {row.delta_label && (
-                                <p className={`mt-1.5 flex items-center gap-1 font-medium ${TREND_TEXT_CLASS[row.trend]}`}>
+                              {row.delta_label !== undefined && (
+                                <p className={`mt-1.5 flex items-center gap-1 font-medium ${TONE_TEXT_CLASS[row.tone]}`}>
                                   <TrendIcon direction={row.direction} />
                                   {row.delta_label}
+                                  <DeltaDetail row={row} className="font-normal text-neutral-400" />
                                 </p>
                               )}
                             </div>
                           );
                         }}
                       />
-                      <Bar
-                        dataKey="index_before"
-                        name="이전 판"
-                        fill={BEFORE_BAR_COLOR}
-                        radius={[4, 4, 0, 0]}
-                        maxBarSize={56}
-                      >
-                        <LabelList dataKey="index_before" position="top" fill="#8E8F90" fontSize={11} />
-                      </Bar>
+                      {/* comparable=false 면 비교 기준이 없으니 현재 판 막대 하나만 그린다. */}
+                      {comparable ? (
+                        <Bar
+                          dataKey="index_before"
+                          name="이전 판"
+                          fill={BEFORE_BAR_COLOR}
+                          radius={[4, 4, 0, 0]}
+                          maxBarSize={56}
+                        >
+                          <LabelList dataKey="index_before" position="top" fill="#8E8F90" fontSize={11} />
+                        </Bar>
+                      ) : null}
                       <Bar dataKey="index_after" name="현재 판" radius={[4, 4, 0, 0]} maxBarSize={56}>
                         {rows.map((row) => (
-                          <Cell key={row.key} fill={AFTER_BAR_COLOR[row.trend]} />
+                          <Cell key={row.key} fill={TONE_BAR_COLOR[row.tone]} />
                         ))}
                         <LabelList dataKey="index_after" position="top" fill="#454546" fontSize={11} />
                       </Bar>
@@ -382,22 +445,21 @@ export function KpiPage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-neutral-500">
+                  {comparable && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: BEFORE_BAR_COLOR }} />
+                      이전 판
+                    </span>
+                  )}
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: BEFORE_BAR_COLOR }} />
-                    이전 판
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: AFTER_BAR_COLOR.IMPROVED }} />
-                    현재 판 (개선)
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: AFTER_BAR_COLOR.WORSENED }} />
-                    현재 판 (악화)
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TONE_BAR_COLOR.GOOD }} />
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TONE_BAR_COLOR.WARN }} />
+                    현재 판
                   </span>
                 </div>
 
-                {!hasBaseline && (
-                  <p className="mt-2 text-xs text-neutral-400">비교할 이전 판이 없어 현재 판 지수만 표시합니다.</p>
+                {!comparable && (
+                  <p className="mt-2 text-xs text-neutral-400">비교할 이전 판이 없어 현재 판 값만 표시합니다.</p>
                 )}
               </>
             ) : (
@@ -421,39 +483,44 @@ export function KpiPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {isKpiLoading ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-neutral-300">
-                        <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                      </td>
-                    </tr>
-                  ) : rows.length > 0 ? (
+                  {rows.length > 0 ? (
                     rows.map((row) => (
                       <tr key={row.key} className="border-b border-neutral-100 last:border-0">
                         <td className="py-2.5 font-medium text-neutral-900">{row.label}</td>
                         <td className="py-2.5 text-neutral-600">
-                          {row.before !== undefined ? (
-                            NUMBER_FORMAT.format(row.before)
+                          {comparable && row.before !== undefined ? (
+                            <>
+                              {NUMBER_FORMAT.format(row.before)}
+                              <span className="text-neutral-400"> {row.unit_label}</span>
+                            </>
                           ) : (
                             <span className="text-neutral-400">비교할 이전 판 없음</span>
                           )}
                         </td>
-                        <td className="py-2.5 text-neutral-900">{NUMBER_FORMAT.format(row.after)}</td>
+                        <td className="py-2.5 text-neutral-900">
+                          {NUMBER_FORMAT.format(row.after)}
+                          <span className="text-neutral-400"> {row.unit_label}</span>
+                        </td>
                         <td className="py-2.5 text-neutral-500">
-                          {row.index_before !== undefined ? (
+                          {comparable && row.index_before !== undefined && row.index_after !== undefined ? (
                             <>
-                              {row.index_before} → {row.index_after}
+                              {NUMBER_FORMAT.format(row.index_before)} → {NUMBER_FORMAT.format(row.index_after)}
                             </>
+                          ) : row.index_after !== undefined ? (
+                            NUMBER_FORMAT.format(row.index_after)
                           ) : (
-                            row.index_after
+                            <span className="text-neutral-400">–</span>
                           )}
                         </td>
                         <td className="py-2.5">
-                          {row.delta_label ? (
-                            <span className={`flex items-center gap-1 font-medium ${TREND_TEXT_CLASS[row.trend]}`}>
-                              <TrendIcon direction={row.direction} />
-                              {row.delta_label}
-                            </span>
+                          {row.delta_label !== undefined ? (
+                            <div className="flex flex-col">
+                              <span className={`flex items-center gap-1 font-medium ${TONE_TEXT_CLASS[row.tone]}`}>
+                                <TrendIcon direction={row.direction} />
+                                {row.delta_label}
+                              </span>
+                              <DeltaDetail row={row} className="mt-0.5 text-xs text-neutral-400" />
+                            </div>
                           ) : (
                             <span className="text-neutral-400">–</span>
                           )}
