@@ -57,6 +57,22 @@ npm run lint       # ESLint 검사
 npm run preview    # 빌드 결과 로컬 미리보기
 ```
 
+## 배포 (Google Cloud Run)
+
+루트의 `Dockerfile` 이 multi-stage 로 빌드한다 — Node 22 에서 `npm ci && npm run build`,
+결과물 `dist/` 만 nginx(alpine) 로 서빙. `nginx.conf` 가 **8080 포트**에서 듣고,
+`try_files $uri $uri/ /index.html` 로 SPA 새로고침 404 를 막는다.
+
+```bash
+gcloud run deploy chungwoon-front --source . --region asia-northeast3 --allow-unauthenticated
+```
+
+로컬에서 이미지 그대로 확인하려면:
+
+```bash
+docker build -t chungwoon-front . && docker run --rm -p 8080:8080 chungwoon-front
+```
+
 ## 디렉터리 구조
 
 ```
