@@ -1,4 +1,4 @@
-import type { GridPoint, VehicleMove, YardBlock, YardCell, YardView } from '../types/yard';
+import type { GridPoint, PathPoint, VehicleMove, YardBlock, YardCell, YardView } from '../types/yard';
 
 /**
  * 야드 격자: 행 4 + 5 + 4 + 5 + 4 = 22, 열 4 + 17 + 4 + 17 + 4 = 46.
@@ -30,9 +30,12 @@ function inBlock(row: number, col: number, bounds: YardBlock['bounds']): boolean
 // 실제 배포되면 백엔드(경로 계산 엔진)가 waypoints를 직접 계산해서 내려준다 —
 // 그때까지 mock 이 그 자리를 대신한다. 차량은 블록을 대각선으로 가로지르지 않고
 // 자기 행(row) 통로를 타고 나가서 격자 중앙의 십자 통로를 거쳐 도착 행 통로로 들어간다.
-function buildRouteWaypoints(origin: GridPoint, dest: GridPoint, gridCols: number): GridPoint[] {
+function buildRouteWaypoints(origin: GridPoint, dest: GridPoint, gridCols: number): PathPoint[] {
   const aisleCol = (gridCols - 1) / 2;
-  return [origin, { row: origin.row, col: aisleCol }, { row: dest.row, col: aisleCol }, dest];
+  // t 는 백엔드가 내려주는 공용 타임라인(틱)과 같은 의미다 — mock 은 경유점 순서를 그대로 쓴다.
+  // (경로가 비어 있을 때의 api/yardLive.ts 폴백과 같은 방식)
+  return [origin, { row: origin.row, col: aisleCol }, { row: dest.row, col: aisleCol }, dest]
+    .map((point, index) => ({ ...point, t: index }));
 }
 
 /** 슬롯 ID 는 서버 규칙과 같다: 블록-절대행-절대열. 예) B01-R04-C07 */
