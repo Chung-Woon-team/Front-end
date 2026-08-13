@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
 import { InstructionsPage } from './pages/InstructionsPage';
 import { YardPage } from './pages/YardPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { DashboardShell } from './components/layout/DashboardShell';
 
@@ -11,7 +12,7 @@ function App() {
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route element={<DashboardShell />}>
-        <Route path="/dashboard" element={<PlaceholderPage title="대시보드" />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/instructions" element={<InstructionsPage />} />
         <Route path="/yard" element={<YardPage />} />
         <Route path="/kpi" element={<PlaceholderPage title="KPI" />} />
