@@ -5,27 +5,37 @@
 *.pem
 *-key.json
 
-### Node ###
-node_modules/
-dist/
-dist-ssr/
-build/
-.vite/
-*.local
+# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+build
+.vite/
+*.local
 
 ### 테스트 · 커버리지 ###
 coverage/
 .nyc_output/
 
-### 에디터 ###
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
 .idea
 *.iml
-.vscode/
-
-### OS ###
 .DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
 Thumbs.db
