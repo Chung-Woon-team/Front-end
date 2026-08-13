@@ -32,9 +32,11 @@ export const ENDPOINTS = {
   plan: (planVersion: string) => `/api/plans/${planVersion}`,
   approvePlan: (planVersion: string) => `/api/plans/${planVersion}/approve`,
   rejectPlan: (planVersion: string) => `/api/plans/${planVersion}/reject`,
+  // 판 하위 리소스. 계약은 docs/FRONTEND_CONTRACT.md:84(KPI) · :115(브리핑).
+  planKpi: (planVersion: string) => `/api/plans/${planVersion}/kpi`,
+  planBriefing: (planVersion: string) => `/api/plans/${planVersion}/briefing`,
   // ping-controller
   ping: () => '/api/ping',
-  // KPI/브리핑은 아직 백엔드에 없다 (2026-08-13 /v3/api-docs 기준) — 해당 화면은 계속 PlaceholderPage.
 } as const;
 
 // Unwraps the { success, data } / { success: false, error } envelope every endpoint uses.
