@@ -40,7 +40,7 @@ export function YardScene({ yardView, moves = [], selectedVehicleId, onSelectVeh
       .filter((cell) => !moveByVehicleId.has(cell.vehicle_id!))
       .map((cell) => {
         const [x, z] = cellToWorld(cell.row, cell.col, rows, cols);
-        return { x, z };
+        return { x, z, id: cell.vehicle_id! };
       });
     executor.setStaticPoints(staticPoints);
 

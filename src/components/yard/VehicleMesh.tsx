@@ -32,7 +32,11 @@ export function VehicleMesh({
     const transform = executor.getTransform(vehicleId);
     const visual = executor.getVisual(vehicleId);
 
-    meshRef.current.position.set(transform?.x ?? initialX, visual.y, transform?.z ?? initialZ);
+    meshRef.current.position.set(
+      (transform?.x ?? initialX) + visual.offsetX,
+      visual.y,
+      (transform?.z ?? initialZ) + visual.offsetZ,
+    );
     meshRef.current.rotation.y = transform?.rotationY ?? 0;
     if (materialRef.current) materialRef.current.opacity = visual.opacity;
   });
