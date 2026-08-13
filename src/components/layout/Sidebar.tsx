@@ -6,6 +6,7 @@ import {
   FileText,
   Grid3x3,
   Home,
+  Lock,
   LogOut,
   MessageSquareText,
 } from 'lucide-react';
@@ -15,11 +16,11 @@ import type { DashboardAiEngine } from '../../types/dashboard';
 
 // 리비전 로그·설정은 아직 기능 개발 전이라 사이드바에서만 숨긴다 (라우트 자체는 유지).
 const NAV_ITEMS = [
-  { to: '/dashboard', label: '대시보드', icon: Home },
-  { to: '/instructions', label: '지시 관리', icon: MessageSquareText },
-  { to: '/yard', label: '야드 배치', icon: Grid3x3 },
-  { to: '/kpi', label: 'KPI', icon: ChartColumn },
-  { to: '/briefing', label: '브리핑', icon: FileText },
+  { to: '/dashboard', label: '대시보드', icon: Home, alwaysUnlocked: true },
+  { to: '/instructions', label: '지시 관리', icon: MessageSquareText, alwaysUnlocked: false },
+  { to: '/yard', label: '야드 배치', icon: Grid3x3, alwaysUnlocked: false },
+  { to: '/kpi', label: 'KPI', icon: ChartColumn, alwaysUnlocked: false },
+  { to: '/briefing', label: '브리핑', icon: FileText, alwaysUnlocked: false },
 ];
 
 interface SidebarProps {
@@ -33,6 +34,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
   const [aiEngine, setAiEngine] = useState<DashboardAiEngine | null>(null);
+  // null = 아직 확인 전(잠금 상태로 렌더). 지시 이력이 한 번이라도 있으면 true.
+  // 대시보드 API 자체가 실패한 경우엔 잠그지 않음 — 백엔드가 종종 500을 반환하는 걸로 확인됐고,
+  // 그 때마다 기존 이력이 있는 사용자를 대시보드에 가둬버리면 안 되기 때문.
+  const [hasInstructionHistory, setHasInstructionHistory] = useState<boolean | null>(null);
 
   useEffect(() => {
     const active = NAV_ITEMS.find((item) => location.pathname.startsWith(item.to));
@@ -42,11 +47,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   useEffect(() => {
     fetchDashboard()
-      .then((data) => setAiEngine(data.ai_engine))
+      .then((data) => {
+        setAiEngine(data.ai_engine);
+        setHasInstructionHistory(data.recent_instructions.length > 0);
+      })
       .catch(() => {
         // Sidebar status is decorative — silently keep the "확인 중" fallback on failure.
+        setHasInstructionHistory(true);
       });
   }, []);
+
+  const isUnlocked = hasInstructionHistory !== false;
 
   return (
     <>
@@ -75,24 +86,43 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               aria-hidden="true"
             />
           )}
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              ref={(el) => {
-                itemRefs.current[to] = el;
-              }}
-              onClick={onClose}
-              className={({ isActive }) =>
-                `relative z-10 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive ? 'text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
-                }`
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
+          {NAV_ITEMS.map(({ to, label, icon: Icon, alwaysUnlocked }) => {
+            const locked = !alwaysUnlocked && !isUnlocked;
+
+            if (locked) {
+              return (
+                <div
+                  key={to}
+                  aria-disabled="true"
+                  title="새 지시를 한 번 이상 입력하면 이용할 수 있습니다."
+                  className="relative z-10 flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/30"
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                  <Lock className="ml-auto h-3.5 w-3.5" />
+                </div>
+              );
+            }
+
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                ref={(el) => {
+                  itemRefs.current[to] = el;
+                }}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `relative z-10 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                    isActive ? 'text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  }`
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="px-4">

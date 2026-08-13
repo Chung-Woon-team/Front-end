@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
-import { AlertTriangle, ChartColumn, FileText, ImagePlus, Loader2, Route, Send, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, ArrowRight, ChartColumn, FileText, ImagePlus, Loader2, Route, Send, X } from 'lucide-react';
 import { ConstraintCard } from '../components/instructions/ConstraintCard';
 import { extractBillOfLading } from '../api/billOfLading';
 import {
@@ -17,6 +18,7 @@ import type { ExecutionResult, PlanDetail } from '../types/plan';
 const DEFAULT_AUTHOR = '야드관리자A';
 
 export function InstructionsPage() {
+  const navigate = useNavigate();
   const [rawText, setRawText] = useState('');
   const [author, setAuthor] = useState(DEFAULT_AUTHOR);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -142,17 +144,9 @@ export function InstructionsPage() {
     setConstraints((prev) => prev.map((c) => (c.constraint_id === updated.constraint_id ? updated : c)));
   };
 
-  const handleApprove = async (constraintId: string) => {
-    const updated = await approveConstraint(constraintId, author);
-    replaceConstraint(updated);
-  };
-
-  const handleReject = async (constraintId: string, reason: string) => {
-    const updated = await rejectConstraint(constraintId, author, reason);
-    replaceConstraint(updated);
-  };
-
-  const handleCreateRoute = async () => {
+  // 승인한 제약을 실제 배치에 반영: 현재 승인 상태 기준으로 경로를 다시 계산해서
+  // 야드 배치 화면(/yard)에서 곧바로 보이게 한다.
+  const reflectApprovedConstraints = async () => {
     if (!instructionId || isCreatingPlan) return;
     setIsCreatingPlan(true);
     setPlanError(null);
@@ -166,6 +160,21 @@ export function InstructionsPage() {
       setIsCreatingPlan(false);
     }
   };
+
+  const handleApprove = async (constraintId: string) => {
+    const updated = await approveConstraint(constraintId, author);
+    replaceConstraint(updated);
+    await reflectApprovedConstraints();
+  };
+
+  const handleReject = async (constraintId: string, reason: string) => {
+    const updated = await rejectConstraint(constraintId, author, reason);
+    replaceConstraint(updated);
+  };
+
+  const handleCreateRoute = () => reflectApprovedConstraints();
+
+  const handleGoToYard = () => navigate('/yard');
 
   const handleGenerateKpi = async () => {
     if (!planResult) return;
@@ -458,6 +467,15 @@ export function InstructionsPage() {
                     {planResult.moves.length > 5 && <li>외 {planResult.moves.length - 5}건</li>}
                   </ul>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handleGoToYard}
+                  className="mt-3 flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
+                >
+                  다음
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
               </div>
             )}
 
