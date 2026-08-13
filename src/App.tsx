@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
 import { InstructionsPage } from './pages/InstructionsPage';
 import { KpiPage } from './pages/KpiPage';
+import { BriefingPage } from './pages/BriefingPage';
+import { RevisionsPage } from './pages/RevisionsPage';
 import { YardPage } from './pages/YardPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
@@ -17,8 +19,8 @@ function App() {
         <Route path="/instructions" element={<InstructionsPage />} />
         <Route path="/yard" element={<YardPage />} />
         <Route path="/kpi" element={<KpiPage />} />
-        <Route path="/briefing" element={<PlaceholderPage title="브리핑" />} />
-        <Route path="/revisions" element={<PlaceholderPage title="리비전 로그" />} />
+        <Route path="/briefing" element={<BriefingPage />} />
+        <Route path="/revisions" element={<RevisionsPage />} />
         <Route path="/settings" element={<PlaceholderPage title="설정" />} />
       </Route>
     </Routes>
