@@ -36,3 +36,9 @@ export interface YardView {
   cells: YardCell[];
   legend: Record<CellState, YardLegendEntry>;
 }
+
+export interface VehicleMove {
+  vehicle_id: string;
+  from: { row: number; col: number };
+  to: { row: number; col: number };
+}

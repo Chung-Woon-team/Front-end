@@ -3,27 +3,38 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 interface VehicleMeshProps {
-  position: [number, number, number];
+  path: [number, number, number][];
   color: string;
 }
 
-export function VehicleMesh({ position, color }: VehicleMeshProps) {
-  const [x, y, z] = position;
+const ARRIVE_EPSILON = 0.05;
+
+export function VehicleMesh({ path, color }: VehicleMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const target = useRef(new THREE.Vector3(x, y, z));
+  const waypoints = useRef<THREE.Vector3[]>([]);
+  const waypointIndex = useRef(0);
   const isMounted = useRef(false);
 
   useEffect(() => {
-    target.current.set(x, y, z);
-    if (!isMounted.current && meshRef.current) {
-      meshRef.current.position.copy(target.current);
+    waypoints.current = path.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+    waypointIndex.current = waypoints.current.length > 1 ? 1 : 0;
+    if (!isMounted.current && meshRef.current && waypoints.current[0]) {
+      meshRef.current.position.copy(waypoints.current[0]);
       isMounted.current = true;
     }
-  }, [x, y, z]);
+  }, [path]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
-    meshRef.current.position.lerp(target.current, Math.min(1, delta * 3));
+    const target = waypoints.current[waypointIndex.current];
+    if (!target) return;
+    meshRef.current.position.lerp(target, Math.min(1, delta * 3));
+    if (
+      meshRef.current.position.distanceTo(target) < ARRIVE_EPSILON &&
+      waypointIndex.current < waypoints.current.length - 1
+    ) {
+      waypointIndex.current += 1;
+    }
   });
 
   return (

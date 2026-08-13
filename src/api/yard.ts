@@ -1,4 +1,4 @@
-import type { YardBlock, YardCell, YardView } from '../types/yard';
+import type { VehicleMove, YardBlock, YardCell, YardView } from '../types/yard';
 
 /**
  * 야드 격자는 팀 도면 그대로 56×56 이다. 가로·세로 모두 4 + 22 + 4 + 22 + 4.
@@ -86,6 +86,7 @@ export function closeBlock(yardView: YardView, blockId: string): YardView {
 
 export interface RelocationResult {
   yardView: YardView;
+  moves: VehicleMove[];
   movedVehicleCount: number;
   planRetentionRate: number;
   hardViolations: number;
@@ -105,23 +106,29 @@ export function relocateClosedBlocks(yardView: YardView): RelocationResult {
     (c) => c.vehicle_id && closedBlocks.some((b) => inBlock(c.row, c.col, b.bounds)),
   );
 
-  let movedVehicleCount = 0;
+  const moves: VehicleMove[] = [];
   for (const vehicleCell of stuckVehicles) {
     const target = emptyOpenSlots.shift();
     if (!target) break;
+    const vehicleId = vehicleCell.vehicle_id!;
+    moves.push({
+      vehicle_id: vehicleId,
+      from: { row: vehicleCell.row, col: vehicleCell.col },
+      to: { row: target.row, col: target.col },
+    });
     target.state = 'MOVED';
-    target.vehicle_id = vehicleCell.vehicle_id;
+    target.vehicle_id = vehicleId;
     vehicleCell.state = 'CLOSED';
     vehicleCell.vehicle_id = undefined;
-    movedVehicleCount += 1;
   }
 
   const totalVehicles = yardView.cells.filter((c) => c.vehicle_id).length;
-  const planRetentionRate = totalVehicles === 0 ? 1 : (totalVehicles - movedVehicleCount) / totalVehicles;
+  const planRetentionRate = totalVehicles === 0 ? 1 : (totalVehicles - moves.length) / totalVehicles;
 
   return {
     yardView: { ...yardView, plan_version: 'B0-r1', based_on_version: yardView.plan_version, cells },
-    movedVehicleCount,
+    moves,
+    movedVehicleCount: moves.length,
     planRetentionRate,
     hardViolations: 0,
     calcMs: Math.max(1, Math.round(performance.now() - start)),

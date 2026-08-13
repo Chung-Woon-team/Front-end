@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { RotateCcw, Zap } from 'lucide-react';
 import { YardScene } from '../components/yard/YardScene';
 import { closeBlock, generateYardView, LEGEND, relocateClosedBlocks } from '../api/yard';
-import type { YardView } from '../types/yard';
+import type { VehicleMove, YardView } from '../types/yard';
 
 interface RelocationStats {
   movedVehicleCount: number;
@@ -15,6 +15,7 @@ export function YardPage() {
   const [yardView, setYardView] = useState<YardView>(() => generateYardView(50));
   const [selectedBlockId, setSelectedBlockId] = useState(yardView.blocks[0]?.block_id ?? '');
   const [stats, setStats] = useState<RelocationStats | null>(null);
+  const [moves, setMoves] = useState<VehicleMove[]>([]);
 
   const totalVehicles = useMemo(() => yardView.cells.filter((c) => c.vehicle_id).length, [yardView.cells]);
   const hasClosedBlockWithVehicles = yardView.blocks.some(
@@ -35,15 +36,18 @@ export function YardPage() {
     setYardView(fresh);
     setSelectedBlockId(fresh.blocks[0]?.block_id ?? '');
     setStats(null);
+    setMoves([]);
   };
 
   const handleCloseBlock = () => {
     setYardView((prev) => closeBlock(prev, selectedBlockId));
+    setMoves([]);
   };
 
   const handleRelocate = () => {
     const result = relocateClosedBlocks(yardView);
     setYardView(result.yardView);
+    setMoves(result.moves);
     setStats({
       movedVehicleCount: result.movedVehicleCount,
       planRetentionRate: result.planRetentionRate,
@@ -115,7 +119,7 @@ export function YardPage() {
       </div>
 
       <div className="mt-4 h-[500px] overflow-hidden rounded-xl border border-neutral-200">
-        <YardScene yardView={yardView} />
+        <YardScene yardView={yardView} moves={moves} />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3">
@@ -125,6 +129,10 @@ export function YardPage() {
             {entry.label}
           </span>
         ))}
+        <span className="flex items-center gap-1.5 text-xs text-neutral-600">
+          <span className="inline-block h-0 w-4 border-t-2 border-dashed border-secondary-600" />
+          이동 경로
+        </span>
       </div>
     </div>
   );
