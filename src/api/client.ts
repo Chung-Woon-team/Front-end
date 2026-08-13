@@ -1,8 +1,10 @@
 import type { ApiResponse } from '../types/api';
 
-// Vite 는 빌드 시점에 이 값을 번들에 박는다. Cloud Run 런타임 환경변수로는 못 바꾼다.
-// .env (커밋됨) 에 배포된 백엔드 주소가 들어있어 dev/build 모두 그 값을 쓴다.
-// 다른 백엔드를 써야 할 때만 --build-arg VITE_API_BASE_URL=... 로 덮어쓴다 (Dockerfile 참고).
+// Vite 는 빌드 시점에 이 값을 번들 문자열로 박는다. Cloud Run 런타임 환경변수로는 못 바꾼다.
+// 배포 이미지의 값은 Dockerfile 의 `ARG VITE_API_BASE_URL` 기본값에서 온다.
+// (.env 는 이 저장소에 없다 — .gitignore 가 막고 있어 커밋 자체가 안 된다.)
+// 로컬 dev 는 값이 없으니 아래 폴백이 걸려 로컬 백엔드를 본다. 다른 주소를 쓰려면
+// frontend/.env.local 을 만들거나 --build-arg VITE_API_BASE_URL=... 로 덮어쓴다.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 // 실서버 응답/요청 바디 케이싱은 컨트롤러마다 다르다 (직접 curl 로 확인, 2026-08-13):
@@ -42,7 +44,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     ...init,
     headers: isFormData ? init?.headers : { 'Content-Type': 'application/json', ...init?.headers },
   });
-  const body = (await response.json()) as ApiResponse<T>;
+  // 응답이 JSON 이 아닐 수 있다 — 백엔드 5xx/502, 연결 실패, nginx 가 try_files 로 돌려준 index.html 등.
+  // 확인 없이 .json() 을 부르면 "Unexpected token '<'" 로 터져서 진짜 원인(주소·상태코드)이 가려진다.
+  let body: ApiResponse<T>;
+  try {
+    body = (await response.json()) as ApiResponse<T>;
+  } catch {
+    throw new Error(
+      `${response.status} ${response.statusText} — 응답이 JSON 이 아니다 (${API_BASE_URL}${path})`,
+    );
+  }
   if (!body.success) {
     throw new Error(`${body.error.code}: ${body.error.message}`);
   }

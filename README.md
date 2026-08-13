@@ -63,24 +63,34 @@ npm run preview    # 빌드 결과 로컬 미리보기
 결과물 `dist/` 만 nginx(alpine) 로 서빙. `nginx.conf` 가 **8080 포트**에서 듣고,
 `try_files $uri $uri/ /index.html` 로 SPA 새로고침 404 를 막는다.
 
-**API 주소는 이미지 빌드 시점에 번들에 박힌다.** Cloud Run 의 런타임 환경변수로는 바뀌지 않는다.
-`src/api/client.ts` 의 `API_BASE_URL` 이 `VITE_API_BASE_URL` 을 읽으며, 루트의 `.env` (커밋됨) 에
-현재 배포된 백엔드 `https://back-end-git-145786632792.asia-northeast3.run.app` 가 들어있어
-`npm run dev` / `npm run build` 모두 별도 설정 없이 이 값을 쓴다.
+### ⚠️ API 주소는 이미지 빌드 시점에 번들에 박힌다
 
-다른 백엔드로 배포해야 할 때만 `--build-arg` 로 덮어쓰면 된다:
+`src/api/client.ts` 의 `API_BASE_URL` 이 `import.meta.env.VITE_API_BASE_URL` 을 읽는데,
+Vite 는 이 값을 **`npm run build` 때 번들 안에 문자열로 치환해 넣는다.** 최종 이미지는
+nginx 가 정적 `dist/` 만 서빙하므로 컨테이너 환경변수를 읽을 JS 런타임이 아예 없다.
+→ **Cloud Run 콘솔의 "변수 및 보안 비밀" 에 넣어봐야 효과가 0이다.**
+
+배포 이미지의 값은 `Dockerfile` 의 **`ARG VITE_API_BASE_URL` 기본값**에서 온다.
+현재 기본값은 `https://back-end-git-145786632792.asia-northeast3.run.app` 이다.
+`.env` 는 이 저장소에 없다 — `.gitignore` 가 `.env` / `.env.*` 를 막고 있어서 커밋이 안 되고,
+`.dockerignore` 도 같이 막고 있어 이미지 빌드에서도 안 보인다. 로컬 dev 용으로만
+`.env.example` 을 `.env.local` 로 복사해 쓰면 된다.
+
+백엔드 주소가 바뀌면 `Dockerfile` 의 ARG 기본값을 고쳐서 push 하면 된다. 자동배포 트리거가
+새 이미지를 만든다. 일회성으로 다른 백엔드를 물릴 때만 `--build-arg` 로 덮어쓴다:
 
 ```bash
 docker build --build-arg VITE_API_BASE_URL=https://<다른 API URL> \
   -t asia-northeast3-docker.pkg.dev/<PROJECT>/chungwoon/front:latest .
 docker push asia-northeast3-docker.pkg.dev/<PROJECT>/chungwoon/front:latest
-gcloud run deploy chungwoon-front \
+gcloud run deploy autoyard-copilot-front \
   --image asia-northeast3-docker.pkg.dev/<PROJECT>/chungwoon/front:latest \
   --region asia-northeast3 --allow-unauthenticated
 ```
 
-> `--source .` 로 배포하면 `--build-arg` 를 못 넘겨서 API 주소가 `localhost` 로 박힌 채
-> 올라간다. 배포된 화면에서 API 호출이 전부 실패한다.
+> `--source .` 나 Cloud Run 의 GitHub 자동배포는 `--build-arg` 를 넘길 수단이 없다.
+> ARG 기본값이 없으면 API 주소가 `http://localhost:8080` 으로 박힌 채 올라가고,
+> 배포된 화면에서 API 호출이 전부 실패한다. (2026-08-13 실제로 이 사고가 났다.)
 
 로컬에서 이미지 그대로 확인하려면:
 
