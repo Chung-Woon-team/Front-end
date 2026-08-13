@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Loader2, RefreshCw, Zap } from 'lucide-react';
 import { YardScene } from '../components/yard/YardScene';
 import { LEGEND } from '../api/yard';
 import { fetchLiveYardView, runLiveRelocation } from '../api/yardLive';
 import { approvePlan } from '../api/plan';
+import type { ExecutionResult } from '../types/plan';
 import type { VehicleMove, YardView } from '../types/yard';
 
 interface RelocationStats {
@@ -15,6 +16,12 @@ interface RelocationStats {
 }
 
 export function YardPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const incomingExecution = useRef(
+    (location.state as { execution?: ExecutionResult } | null)?.execution ?? null,
+  );
+  const initialLoadStarted = useRef(false);
   const [yardView, setYardView] = useState<YardView | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -28,11 +35,29 @@ export function YardPage() {
 
   const loadYard = () => {
     fetchLiveYardView()
-      .then((view) => {
-        setYardView(view);
-        setStats(null);
-        setMoves([]);
-        setPendingPlanVersion(null);
+      .then(async (view) => {
+        const execution = incomingExecution.current;
+        incomingExecution.current = null;
+        if (!execution) {
+          setYardView(view);
+          setStats(null);
+          setMoves([]);
+          setApprovedPlanVersion(null);
+          setPendingPlanVersion(null);
+          return;
+        }
+
+        const result = await runLiveRelocation(view, execution);
+        setYardView(result.yardView);
+        setMoves(result.moves);
+        setStats({
+          movedVehicleCount: result.movedVehicleCount,
+          planRetentionRate: result.planRetentionRate,
+          hardViolations: result.hardViolations,
+          calcMs: result.calcMs,
+        });
+        setApprovedPlanVersion(null);
+        setPendingPlanVersion(execution.plan_version);
       })
       .catch((err: unknown) => {
         setLoadError(err instanceof Error ? err.message : '야드 데이터를 불러오지 못했습니다.');
@@ -41,6 +66,8 @@ export function YardPage() {
   };
 
   useEffect(() => {
+    if (initialLoadStarted.current) return;
+    initialLoadStarted.current = true;
     loadYard();
   }, []);
 
@@ -83,11 +110,9 @@ export function YardPage() {
     setRelocateError(null);
     try {
       const approved = await approvePlan(pendingPlanVersion, { reviewer: '야드관리자A' });
-      const confirmedYard = await fetchLiveYardView();
-      setYardView(confirmedYard);
-      setMoves([]);
       setApprovedPlanVersion(approved.plan_version);
       setPendingPlanVersion(null);
+      navigate('/kpi');
     } catch (err) {
       setRelocateError(err instanceof Error ? err.message : '알고리즘 결과 승인에 실패했습니다.');
     } finally {
