@@ -18,7 +18,9 @@ export interface PlanSummary {
 
 export interface MoveDto {
   vehicle_id: string;
-  from_slot: string;
+  // Absent for a first-time placement ("신규 배치") — there's no prior slot to move from.
+  // Curl-verified 2026-08-13: don't assume this is always present like the OpenAPI schema implies.
+  from_slot?: string;
   to_slot: string;
   sequence: number;
   reason?: string;

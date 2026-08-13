@@ -26,6 +26,8 @@ export const ENDPOINTS = {
   // yard-controller / yard-occupancy-controller
   yardState: () => '/api/yard/state',
   yardOccupancy: () => '/api/yard/occupancy',
+  yardOccupancyCheck: () => '/api/yard/occupancy/check',
+  yardOccupancyConfirm: (batchId: string) => `/api/yard/occupancy/check/${batchId}/confirm`,
   vehicles: () => '/api/vehicles',
   // plan-controller
   plans: () => '/api/plans',

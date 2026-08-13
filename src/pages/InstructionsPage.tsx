@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
-import { AlertTriangle, FileText, ImagePlus, Loader2, Send, X } from 'lucide-react';
+import { AlertTriangle, ChartColumn, FileText, ImagePlus, Loader2, Route, Send, X } from 'lucide-react';
 import { ConstraintCard } from '../components/instructions/ConstraintCard';
 import { extractBillOfLading } from '../api/billOfLading';
 import {
@@ -9,8 +9,10 @@ import {
   parseConstraints,
   rejectConstraint,
 } from '../api/instructions';
+import { createPlan, fetchPlan } from '../api/plan';
 import type { BillOfLadingResult } from '../types/billOfLading';
 import type { ConstraintSummary } from '../types/instruction';
+import type { ExecutionResult, PlanDetail } from '../types/plan';
 
 const DEFAULT_AUTHOR = '야드관리자A';
 
@@ -33,6 +35,14 @@ export function InstructionsPage() {
   const [blResult, setBlResult] = useState<BillOfLadingResult | null>(null);
   const [isExtractingBl, setIsExtractingBl] = useState(false);
   const [blError, setBlError] = useState<string | null>(null);
+  const [planResult, setPlanResult] = useState<ExecutionResult | null>(null);
+  const [isCreatingPlan, setIsCreatingPlan] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [showKpiConfirm, setShowKpiConfirm] = useState(false);
+  const [planDetail, setPlanDetail] = useState<PlanDetail | null>(null);
+  const [isFetchingKpi, setIsFetchingKpi] = useState(false);
+  const [showBriefingConfirm, setShowBriefingConfirm] = useState(false);
+  const [briefing, setBriefing] = useState<string | null>(null);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -112,6 +122,12 @@ export function InstructionsPage() {
       setConstraints(allConstraints.filter((c) => c.instruction_id === instruction.instruction_id));
       setUnresolved(outcome.unresolved);
       setRequiresConfirmation(outcome.requires_confirmation);
+      setPlanResult(null);
+      setPlanError(null);
+      setShowKpiConfirm(false);
+      setPlanDetail(null);
+      setShowBriefingConfirm(false);
+      setBriefing(null);
       setRawText('');
       handleImageRemove();
       handleBlRemove();
@@ -134,6 +150,61 @@ export function InstructionsPage() {
   const handleReject = async (constraintId: string, reason: string) => {
     const updated = await rejectConstraint(constraintId, author, reason);
     replaceConstraint(updated);
+  };
+
+  const handleCreateRoute = async () => {
+    if (!instructionId || isCreatingPlan) return;
+    setIsCreatingPlan(true);
+    setPlanError(null);
+    try {
+      const result = await createPlan({ triggeredByInstructionId: instructionId });
+      setPlanResult(result);
+      setShowKpiConfirm(true);
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : '경로 생성에 실패했습니다.');
+    } finally {
+      setIsCreatingPlan(false);
+    }
+  };
+
+  const handleGenerateKpi = async () => {
+    if (!planResult) return;
+    setShowKpiConfirm(false);
+    setIsFetchingKpi(true);
+    try {
+      const detail = await fetchPlan(planResult.plan_version);
+      setPlanDetail(detail);
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : 'KPI 조회에 실패했습니다.');
+    } finally {
+      setIsFetchingKpi(false);
+      setShowBriefingConfirm(true);
+    }
+  };
+
+  const handleSkipKpi = () => {
+    setShowKpiConfirm(false);
+    setShowBriefingConfirm(true);
+  };
+
+  // 브리핑 생성 API가 아직 없어, 지금까지 모인 경로/KPI 결과를 화면에서 그대로 조합한다.
+  const handleGenerateBriefing = () => {
+    if (!planResult) return;
+    setShowBriefingConfirm(false);
+    const lines = [
+      `지시 ${instructionId}에 대한 재배치 경로가 생성되었습니다 (플랜 ${planResult.plan_version}).`,
+      `이동 차량 ${planResult.move_count}대, 미배치 ${planResult.unplaced.length}대.`,
+    ];
+    if (planDetail) {
+      lines.push(
+        `평균 이동거리 ${planDetail.avg_move_distance.toFixed(1)}m, 계획 유지율 ${planDetail.plan_retention_rate.toFixed(1)}%, HARD 위반 ${planDetail.hard_violations}건.`,
+      );
+    }
+    setBriefing(lines.join(' '));
+  };
+
+  const handleSkipBriefing = () => {
+    setShowBriefingConfirm(false);
   };
 
   return (
@@ -351,6 +422,131 @@ export function InstructionsPage() {
                 onReject={handleReject}
               />
             ))}
+          </div>
+
+          <div className="rounded-xl border border-neutral-200 bg-white p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-neutral-700">재배치 경로</h2>
+              {!planResult && (
+                <button
+                  type="button"
+                  onClick={handleCreateRoute}
+                  disabled={isCreatingPlan}
+                  className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-40"
+                >
+                  {isCreatingPlan ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Route className="h-3.5 w-3.5" />}
+                  {isCreatingPlan ? '경로 계산 중…' : '경로 생성'}
+                </button>
+              )}
+            </div>
+
+            {planError && <p className="mt-2 text-sm text-red-600">{planError}</p>}
+
+            {planResult && (
+              <div className="mt-3 rounded-lg border border-neutral-200 p-4">
+                <p className="text-sm text-neutral-800">
+                  플랜 <span className="font-medium">{planResult.plan_version}</span> · 이동{' '}
+                  {planResult.move_count}대 · 미배치 {planResult.unplaced.length}대
+                </p>
+                {planResult.moves.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-neutral-500">
+                    {planResult.moves.slice(0, 5).map((move) => (
+                      <li key={move.vehicle_id}>
+                        {move.vehicle_id}: {move.from_slot ?? '신규'} → {move.to_slot} ({move.distance_meters.toFixed(1)}m)
+                      </li>
+                    ))}
+                    {planResult.moves.length > 5 && <li>외 {planResult.moves.length - 5}건</li>}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {showKpiConfirm && (
+              <div className="mt-3 flex items-start gap-3 rounded-lg border border-secondary-200 bg-secondary-50 p-3">
+                <ChartColumn className="mt-0.5 h-4 w-4 shrink-0 text-secondary-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-secondary-800">KPI를 생성하시겠습니까?</p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleGenerateKpi}
+                      className="rounded-md bg-secondary-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-secondary-700"
+                    >
+                      확인
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSkipKpi}
+                      className="rounded-md border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isFetchingKpi && <p className="mt-2 text-xs text-neutral-400">KPI 조회 중…</p>}
+
+            {planDetail && (
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-lg border border-neutral-200 p-3">
+                  <p className="text-xs text-neutral-500">평균 이동거리</p>
+                  <p className="mt-0.5 text-base font-bold text-neutral-900">
+                    {planDetail.avg_move_distance.toFixed(1)}m
+                  </p>
+                </div>
+                <div className="rounded-lg border border-neutral-200 p-3">
+                  <p className="text-xs text-neutral-500">계획 유지율</p>
+                  <p className="mt-0.5 text-base font-bold text-neutral-900">
+                    {planDetail.plan_retention_rate.toFixed(1)}%
+                  </p>
+                </div>
+                <div className="rounded-lg border border-neutral-200 p-3">
+                  <p className="text-xs text-neutral-500">HARD 위반</p>
+                  <p className="mt-0.5 text-base font-bold text-neutral-900">{planDetail.hard_violations}</p>
+                </div>
+                <div className="rounded-lg border border-neutral-200 p-3">
+                  <p className="text-xs text-neutral-500">변경 차량</p>
+                  <p className="mt-0.5 text-base font-bold text-neutral-900">{planDetail.changed_vehicles}</p>
+                </div>
+              </div>
+            )}
+
+            {showBriefingConfirm && (
+              <div className="mt-3 flex items-start gap-3 rounded-lg border border-secondary-200 bg-secondary-50 p-3">
+                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-secondary-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-secondary-800">브리핑을 만드시겠습니까?</p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleGenerateBriefing}
+                      className="rounded-md bg-secondary-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-secondary-700"
+                    >
+                      확인
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSkipBriefing}
+                      className="rounded-md border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {briefing && (
+              <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                <p className="text-sm font-semibold text-neutral-700">브리핑</p>
+                <p className="mt-1 text-sm text-neutral-600">{briefing}</p>
+                <p className="mt-2 text-xs text-neutral-400">
+                  브리핑 생성 API가 아직 없어 경로·KPI 결과를 화면에서 조합했습니다.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
