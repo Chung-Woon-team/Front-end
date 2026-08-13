@@ -1,0 +1,16 @@
+# 이미지에 안 들어가야 하는 것들. 빌드 컨텍스트가 작을수록 배포가 빠르다.
+node_modules
+dist
+dist-ssr
+.git
+.github
+.vscode
+.idea
+docs
+*.log
+.env
+.env.*
+!.env.example
+coverage
+.DS_Store
+Thumbs.db
