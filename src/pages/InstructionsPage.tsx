@@ -11,9 +11,11 @@ import {
   rejectConstraint,
 } from '../api/instructions';
 import { createPlan, fetchPlan } from '../api/plan';
+import { checkYardOccupancy, confirmYardOccupancy } from '../api/yardApi';
 import type { BillOfLadingResult } from '../types/billOfLading';
 import type { ConstraintSummary } from '../types/instruction';
 import type { ExecutionResult, PlanDetail } from '../types/plan';
+import type { OccupancyCheckResponse } from '../types/yardApi';
 
 const DEFAULT_AUTHOR = '야드관리자A';
 
@@ -32,6 +34,9 @@ export function InstructionsPage() {
   const [isComparing, setIsComparing] = useState(false);
   const [showMismatchConfirm, setShowMismatchConfirm] = useState(false);
   const [dataSyncNote, setDataSyncNote] = useState<'synced' | 'kept' | null>(null);
+  const [occupancyCheck, setOccupancyCheck] = useState<OccupancyCheckResponse | null>(null);
+  const [occupancyError, setOccupancyError] = useState<string | null>(null);
+  const [isConfirmingOccupancy, setIsConfirmingOccupancy] = useState(false);
   const [blFile, setBlFile] = useState<File | null>(null);
   const [blPreview, setBlPreview] = useState<string | null>(null);
   const [blResult, setBlResult] = useState<BillOfLadingResult | null>(null);
@@ -46,7 +51,7 @@ export function InstructionsPage() {
   const [showBriefingConfirm, setShowBriefingConfirm] = useState(false);
   const [briefing, setBriefing] = useState<string | null>(null);
 
-  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
@@ -54,13 +59,31 @@ export function InstructionsPage() {
     setSiteImage(file);
     setSiteImagePreview(URL.createObjectURL(file));
     setDataSyncNote(null);
+    setOccupancyCheck(null);
+    setOccupancyError(null);
     setShowMismatchConfirm(false);
     setIsComparing(true);
-    // No comparison backend yet — simulates checking the photo against the current yard data.
-    window.setTimeout(() => {
+    try {
+      const result = await checkYardOccupancy(file);
+      setOccupancyCheck(result);
+
+      // 키가 없거나 인식에 실패하면 백엔드는 전부 EMPTY인 confidence=0 폴백을 준다.
+      // 이 결과를 PHOTO로 확정하면 실제 점유 상태를 지울 수 있으므로 확정을 막는다.
+      if (result.confidence <= 0) {
+        setOccupancyError('사진 인식 결과의 신뢰도가 0입니다. AI 엔진 상태를 확인한 뒤 다시 업로드해주세요.');
+        return;
+      }
+
+      if (result.diff_count === 0 && !result.requires_confirmation) {
+        setDataSyncNote('synced');
+      } else {
+        setShowMismatchConfirm(true);
+      }
+    } catch (err) {
+      setOccupancyError(err instanceof Error ? err.message : '주차 현황 사진을 분석하지 못했습니다.');
+    } finally {
       setIsComparing(false);
-      setShowMismatchConfirm(true);
-    }, 900);
+    }
   };
 
   const handleImageRemove = () => {
@@ -68,18 +91,41 @@ export function InstructionsPage() {
     setSiteImage(null);
     setSiteImagePreview(null);
     setIsComparing(false);
+    setIsConfirmingOccupancy(false);
     setShowMismatchConfirm(false);
     setDataSyncNote(null);
+    setOccupancyCheck(null);
+    setOccupancyError(null);
   };
 
-  const handleConfirmSync = () => {
-    setShowMismatchConfirm(false);
-    setDataSyncNote('synced');
+  const handleConfirmSync = async () => {
+    if (!occupancyCheck || isConfirmingOccupancy) return;
+    setIsConfirmingOccupancy(true);
+    setOccupancyError(null);
+    try {
+      await confirmYardOccupancy(occupancyCheck.batch_id, { choice: 'PHOTO' });
+      setShowMismatchConfirm(false);
+      setDataSyncNote('synced');
+    } catch (err) {
+      setOccupancyError(err instanceof Error ? err.message : '사진의 주차 현황을 DB에 반영하지 못했습니다.');
+    } finally {
+      setIsConfirmingOccupancy(false);
+    }
   };
 
-  const handleCancelSync = () => {
-    setShowMismatchConfirm(false);
-    setDataSyncNote('kept');
+  const handleCancelSync = async () => {
+    if (!occupancyCheck || isConfirmingOccupancy) return;
+    setIsConfirmingOccupancy(true);
+    setOccupancyError(null);
+    try {
+      await confirmYardOccupancy(occupancyCheck.batch_id, { choice: 'KEEP' });
+      setShowMismatchConfirm(false);
+      setDataSyncNote('kept');
+    } catch (err) {
+      setOccupancyError(err instanceof Error ? err.message : '기존 주차 현황 유지 요청에 실패했습니다.');
+    } finally {
+      setIsConfirmingOccupancy(false);
+    }
   };
 
   const handleBlChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -112,7 +158,7 @@ export function InstructionsPage() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!rawText.trim() || !siteImage || !blResult || isSubmitting) return;
+    if (!rawText.trim() || !siteImage || !blResult || !dataSyncNote || isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -271,23 +317,43 @@ export function InstructionsPage() {
 
           {isComparing && <p className="mt-2 text-xs text-neutral-400">현재 데이터와 비교 중…</p>}
 
+          {occupancyCheck && occupancyCheck.confidence > 0 && (
+            <p className="mt-2 text-xs text-neutral-500">
+              사진 인식 신뢰도 {(occupancyCheck.confidence * 100).toFixed(1)}% · 변경 감지{' '}
+              {occupancyCheck.diff_count}칸
+              {occupancyCheck.requires_confirmation ? ' · 담당자 확인 필요' : ''}
+            </p>
+          )}
+
+          {occupancyError && <p className="mt-2 text-xs font-medium text-red-600">{occupancyError}</p>}
+
           {showMismatchConfirm && (
             <div className="mt-3 flex items-start gap-3 rounded-lg border border-secondary-200 bg-secondary-50 p-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-secondary-600" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-secondary-800">사진 속 주차 현황이 현재 데이터와 다릅니다.</p>
-                <p className="mt-0.5 text-xs text-secondary-700">사진에 있는 데이터로 변경하시겠습니까?</p>
+                <p className="text-sm font-medium text-secondary-800">
+                  {occupancyCheck?.diff_count
+                    ? '사진 속 주차 현황이 현재 데이터와 다릅니다.'
+                    : '사진 인식 결과에 담당자 확인이 필요합니다.'}
+                </p>
+                <p className="mt-0.5 text-xs text-secondary-700">
+                  {occupancyCheck?.diff_count
+                    ? '사진에 있는 데이터로 변경하시겠습니까?'
+                    : '이 인식 결과를 확인한 것으로 처리하시겠습니까?'}
+                </p>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
                     onClick={handleConfirmSync}
+                    disabled={isConfirmingOccupancy}
                     className="rounded-md bg-secondary-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-secondary-700"
                   >
-                    확인
+                    {isConfirmingOccupancy ? '반영 중…' : '확인'}
                   </button>
                   <button
                     type="button"
                     onClick={handleCancelSync}
+                    disabled={isConfirmingOccupancy}
                     className="rounded-md border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
                   >
                     취소
@@ -390,7 +456,7 @@ export function InstructionsPage() {
 
           <button
             type="submit"
-            disabled={!rawText.trim() || !siteImage || !blResult || isSubmitting}
+            disabled={!rawText.trim() || !siteImage || !blResult || !dataSyncNote || isSubmitting}
             className="flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-40 sm:w-auto"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
