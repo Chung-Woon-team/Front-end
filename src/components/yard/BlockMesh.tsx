@@ -19,9 +19,9 @@ export function BlockMesh({ block, gridRows, gridCols }: BlockMeshProps) {
       <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[width - 0.08, depth - 0.08]} />
         <meshStandardMaterial
-          color={block.closed ? '#ef4444' : '#1e293b'}
+          color={block.closed ? '#ef4444' : '#3f4f6b'}
           transparent
-          opacity={block.closed ? 0.4 : 0.55}
+          opacity={block.closed ? 0.45 : 0.75}
         />
       </mesh>
       <Html position={[0, 0.3, 0]} center>

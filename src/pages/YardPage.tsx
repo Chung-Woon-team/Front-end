@@ -1,16 +1,40 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, RefreshCw, Zap } from 'lucide-react';
+import { Loader2, RefreshCw, X, Zap } from 'lucide-react';
 import { YardScene } from '../components/yard/YardScene';
 import { LEGEND } from '../api/yard';
 import { fetchLiveYardView, runLiveRelocation } from '../api/yardLive';
 import type { VehicleMove, YardView } from '../types/yard';
+import { getVehicleType, VEHICLE_TYPE_LABEL } from '../utils/vehicleType';
 
 interface RelocationStats {
   movedVehicleCount: number;
   planRetentionRate: number;
   hardViolations: number;
   calcMs: number;
+}
+
+const NEXT_MODE_LABEL: Record<string, string> = {
+  TRUCK: '트럭',
+  RAIL: '철도',
+  SHIP: '선박',
+};
+
+function formatDepartureDate(iso?: string): string {
+  if (!iso) return '-';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '-';
+  const parts = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
 }
 
 export function YardPage() {
@@ -21,6 +45,7 @@ export function YardPage() {
   const [relocateError, setRelocateError] = useState<string | null>(null);
   const [stats, setStats] = useState<RelocationStats | null>(null);
   const [moves, setMoves] = useState<VehicleMove[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
 
   const loadYard = () => {
     fetchLiveYardView()
@@ -28,6 +53,7 @@ export function YardPage() {
         setYardView(view);
         setStats(null);
         setMoves([]);
+        setSelectedVehicleId(null);
       })
       .catch((err: unknown) => {
         setLoadError(err instanceof Error ? err.message : '야드 데이터를 불러오지 못했습니다.');
@@ -47,11 +73,13 @@ export function YardPage() {
 
   const totalVehicles = yardView?.cells.filter((c) => c.vehicle_id).length ?? 0;
   const totalSlots = yardView?.cells.length ?? 0;
+  const selectedCell = yardView?.cells.find((c) => c.vehicle_id === selectedVehicleId) ?? null;
 
   const handleRelocate = async () => {
     if (!yardView || isRelocating) return;
     setIsRelocating(true);
     setRelocateError(null);
+    setSelectedVehicleId(null);
     try {
       const result = await runLiveRelocation(yardView);
       setYardView(result.yardView);
@@ -130,16 +158,57 @@ export function YardPage() {
         <StatCard label="계산시간" value={stats ? `${stats.calcMs}ms` : '-'} />
       </div>
 
-      <div className="mt-4 h-[320px] overflow-hidden rounded-xl border border-neutral-200 bg-neutral-950 sm:h-[420px] lg:h-[500px]">
+      <div className="relative mt-4 h-[320px] overflow-hidden rounded-xl border border-neutral-200 bg-neutral-950 sm:h-[420px] lg:h-[500px]">
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-neutral-400">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : yardView ? (
-          <YardScene yardView={yardView} moves={moves} />
+          <YardScene
+            yardView={yardView}
+            moves={moves}
+            selectedVehicleId={selectedVehicleId}
+            onSelectVehicle={setSelectedVehicleId}
+          />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-neutral-400">
             표시할 야드 데이터가 없습니다.
+          </div>
+        )}
+
+        {selectedCell && (
+          <div className="absolute right-3 top-3 z-10 w-64 rounded-xl border border-white/10 bg-neutral-900/95 p-4 text-white shadow-lg backdrop-blur">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-semibold">{selectedCell.vehicle_id}</p>
+              <button
+                type="button"
+                onClick={() => setSelectedVehicleId(null)}
+                aria-label="차량 정보 닫기"
+                className="text-white/50 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <dl className="mt-3 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-white/50">슬롯</dt>
+                <dd className="font-medium">{selectedCell.slot_id}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-white/50">차종</dt>
+                <dd className="font-medium">{VEHICLE_TYPE_LABEL[getVehicleType(selectedCell.vehicle_id!)]}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-white/50">이동방식</dt>
+                <dd className="font-medium">
+                  {selectedCell.next_mode ? NEXT_MODE_LABEL[selectedCell.next_mode] ?? selectedCell.next_mode : '-'}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-white/50">출차 예정</dt>
+                <dd className="font-medium">{formatDepartureDate(selectedCell.departure_cutoff_at)}</dd>
+              </div>
+            </dl>
           </div>
         )}
       </div>
