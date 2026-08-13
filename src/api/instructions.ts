@@ -2,7 +2,7 @@ import { apiFetch, ENDPOINTS } from './client';
 import type { ConstraintStatus, ConstraintSummary, InstructionSummary, ParseOutcome } from '../types/instruction';
 
 export async function createInstruction(payload: {
-  rawText: string;
+  raw_text: string;
   author?: string;
 }): Promise<InstructionSummary> {
   return apiFetch<InstructionSummary>(ENDPOINTS.instructions(), {

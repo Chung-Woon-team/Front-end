@@ -1,19 +1,18 @@
 import type { GridPoint, VehicleMove, YardBlock, YardCell, YardView } from '../types/yard';
 
 /**
- * 야드 격자는 팀 도면 그대로 56×56 이다. 가로·세로 모두 4 + 22 + 4 + 22 + 4.
+ * 야드 격자: 행 4 + 5 + 4 + 5 + 4 = 22, 열 4 + 17 + 4 + 17 + 4 = 46.
  * 블록 사이와 바깥의 빈 칸이 도로(외곽 폭 4 + 십자 통로 폭 4)다.
  *
- * 주차칸 22×22×4 = 1,936 / 도로칸 1,200.
- * 서버 정본은 backend 의 YardGrid.java, 문서는 docs/DOMAIN.md 의 "야드 격자" 절.
+ * 주차칸 (5×17)×4 = 340 / 도로칸 672.
  */
-const GRID = { rows: 56, cols: 56 };
+const GRID = { rows: 22, cols: 46 };
 
 const BLOCK_DEFS: { block_id: string; bounds: YardBlock['bounds'] }[] = [
-  { block_id: 'B01', bounds: { row0: 4, col0: 4, row1: 25, col1: 25 } },
-  { block_id: 'B02', bounds: { row0: 4, col0: 30, row1: 25, col1: 51 } },
-  { block_id: 'B03', bounds: { row0: 30, col0: 4, row1: 51, col1: 25 } },
-  { block_id: 'B04', bounds: { row0: 30, col0: 30, row1: 51, col1: 51 } },
+  { block_id: 'B01', bounds: { row0: 4, col0: 4, row1: 8, col1: 20 } },
+  { block_id: 'B02', bounds: { row0: 4, col0: 25, row1: 8, col1: 41 } },
+  { block_id: 'B03', bounds: { row0: 13, col0: 4, row1: 17, col1: 20 } },
+  { block_id: 'B04', bounds: { row0: 13, col0: 25, row1: 17, col1: 41 } },
 ];
 
 export const LEGEND: YardView['legend'] = {
@@ -41,8 +40,8 @@ function toSlotId(blockId: string, row: number, col: number): string {
   return `${blockId}-R${String(row).padStart(2, '0')}-C${String(col).padStart(2, '0')}`;
 }
 
-// 슬롯이 1,936칸이라 예전 기본값(50대)은 거의 빈 야드로 보인다. 3분의 1쯤 채운다.
-export function generateYardView(vehicleCount = 640): YardView {
+// 슬롯 340칸 중 3분의 1쯤 채운다.
+export function generateYardView(vehicleCount = 110): YardView {
   const blocks: YardBlock[] = BLOCK_DEFS.map((b) => ({
     block_id: b.block_id,
     closed: false,

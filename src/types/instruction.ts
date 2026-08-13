@@ -3,30 +3,31 @@ export type ConstraintPriority = 'HARD' | 'SOFT';
 export type ConstraintStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
 
 // Server DTOs — field names and shape verified against the live backend response,
-// not just the OpenAPI doc (the doc's schema is snake_case, the real JSON is camelCase).
+// not just the OpenAPI doc. The live backend serializes snake_case for these
+// endpoints (checked via curl, 2026-08-13) — don't trust the doc's casing blindly.
 export interface InstructionSummary {
-  instructionId: string;
+  instruction_id: string;
 }
 
 export interface ParseOutcome {
-  instructionId: string;
-  constraintIds: string[];
+  instruction_id: string;
+  constraint_ids: string[];
   unresolved: string[];
-  requiresConfirmation: boolean;
+  requires_confirmation: boolean;
 }
 
 export interface ConstraintSummary {
-  constraintId: string;
-  instructionId: string;
+  constraint_id: string;
+  instruction_id: string;
   type: ConstraintType;
   priority: ConstraintPriority;
-  targetJson?: string;
-  valueJson?: string;
-  windowStart?: string;
-  windowEnd?: string;
+  target_json?: string;
+  value_json?: string;
+  window_start?: string;
+  window_end?: string;
   confidence: number;
   status: ConstraintStatus;
-  reviewedBy?: string;
-  reviewedAt?: string;
-  rejectionReason?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  rejection_reason?: string;
 }

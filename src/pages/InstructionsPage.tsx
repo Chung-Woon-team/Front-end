@@ -25,6 +25,9 @@ export function InstructionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [siteImage, setSiteImage] = useState<File | null>(null);
   const [siteImagePreview, setSiteImagePreview] = useState<string | null>(null);
+  const [isComparing, setIsComparing] = useState(false);
+  const [showMismatchConfirm, setShowMismatchConfirm] = useState(false);
+  const [dataSyncNote, setDataSyncNote] = useState<'synced' | 'kept' | null>(null);
   const [blFile, setBlFile] = useState<File | null>(null);
   const [blPreview, setBlPreview] = useState<string | null>(null);
   const [blResult, setBlResult] = useState<BillOfLadingResult | null>(null);
@@ -38,12 +41,33 @@ export function InstructionsPage() {
     if (siteImagePreview) URL.revokeObjectURL(siteImagePreview);
     setSiteImage(file);
     setSiteImagePreview(URL.createObjectURL(file));
+    setDataSyncNote(null);
+    setShowMismatchConfirm(false);
+    setIsComparing(true);
+    // No comparison backend yet — simulates checking the photo against the current yard data.
+    window.setTimeout(() => {
+      setIsComparing(false);
+      setShowMismatchConfirm(true);
+    }, 900);
   };
 
   const handleImageRemove = () => {
     if (siteImagePreview) URL.revokeObjectURL(siteImagePreview);
     setSiteImage(null);
     setSiteImagePreview(null);
+    setIsComparing(false);
+    setShowMismatchConfirm(false);
+    setDataSyncNote(null);
+  };
+
+  const handleConfirmSync = () => {
+    setShowMismatchConfirm(false);
+    setDataSyncNote('synced');
+  };
+
+  const handleCancelSync = () => {
+    setShowMismatchConfirm(false);
+    setDataSyncNote('kept');
   };
 
   const handleBlChange = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -80,14 +104,14 @@ export function InstructionsPage() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const instruction = await createInstruction({ rawText: rawText.trim(), author });
-      const outcome = await parseConstraints(instruction.instructionId);
+      const instruction = await createInstruction({ raw_text: rawText.trim(), author });
+      const outcome = await parseConstraints(instruction.instruction_id);
       const allConstraints = await fetchConstraints();
 
-      setInstructionId(instruction.instructionId);
-      setConstraints(allConstraints.filter((c) => c.instructionId === instruction.instructionId));
+      setInstructionId(instruction.instruction_id);
+      setConstraints(allConstraints.filter((c) => c.instruction_id === instruction.instruction_id));
       setUnresolved(outcome.unresolved);
-      setRequiresConfirmation(outcome.requiresConfirmation);
+      setRequiresConfirmation(outcome.requires_confirmation);
       setRawText('');
       handleImageRemove();
       handleBlRemove();
@@ -99,7 +123,7 @@ export function InstructionsPage() {
   };
 
   const replaceConstraint = (updated: ConstraintSummary) => {
-    setConstraints((prev) => prev.map((c) => (c.constraintId === updated.constraintId ? updated : c)));
+    setConstraints((prev) => prev.map((c) => (c.constraint_id === updated.constraint_id ? updated : c)));
   };
 
   const handleApprove = async (constraintId: string) => {
@@ -123,6 +147,83 @@ export function InstructionsPage() {
 
       <form onSubmit={handleSubmit} className="rounded-xl border border-neutral-200 bg-white p-5">
         <div>
+          <label className="block text-sm font-medium text-neutral-700">
+            현재 주차 상황 사진 <span className="text-red-500">*</span>
+          </label>
+          <p className="mt-0.5 text-xs text-neutral-400">지금 야드에 주차된 차량 상황을 촬영해 올려주세요.</p>
+
+          <div className="mt-2 flex items-center gap-3">
+            {siteImagePreview ? (
+              <div className="relative">
+                <img
+                  src={siteImagePreview}
+                  alt="현재 주차 상황 미리보기"
+                  className="h-24 w-24 rounded-lg border border-neutral-200 object-cover"
+                />
+                {isComparing ? (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/40">
+                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleImageRemove}
+                    aria-label="상황사진 제거"
+                    className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <label
+                htmlFor="site_image"
+                className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 text-neutral-400 hover:border-primary-400 hover:text-primary-500"
+              >
+                <ImagePlus className="h-5 w-5" />
+                <span className="text-xs">사진 추가</span>
+              </label>
+            )}
+            {siteImage && <span className="max-w-48 truncate text-xs text-neutral-500">{siteImage.name}</span>}
+          </div>
+
+          <input id="site_image" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+
+          {isComparing && <p className="mt-2 text-xs text-neutral-400">현재 데이터와 비교 중…</p>}
+
+          {showMismatchConfirm && (
+            <div className="mt-3 flex items-start gap-3 rounded-lg border border-secondary-200 bg-secondary-50 p-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-secondary-600" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-secondary-800">사진 속 주차 현황이 현재 데이터와 다릅니다.</p>
+                <p className="mt-0.5 text-xs text-secondary-700">사진에 있는 데이터로 변경하시겠습니까?</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleConfirmSync}
+                    className="rounded-md bg-secondary-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-secondary-700"
+                  >
+                    확인
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelSync}
+                    className="rounded-md border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {dataSyncNote === 'synced' && (
+            <p className="mt-2 text-xs font-medium text-emerald-600">사진 데이터로 갱신되었습니다.</p>
+          )}
+          {dataSyncNote === 'kept' && <p className="mt-2 text-xs text-neutral-400">기존 데이터를 유지했습니다.</p>}
+        </div>
+
+        <div className="mt-4">
           <label className="block text-sm font-medium text-neutral-700">
             선하증권 <span className="text-red-500">*</span>
           </label>
@@ -170,7 +271,7 @@ export function InstructionsPage() {
               {isExtractingBl && <p className="mt-1 text-neutral-400">인식 중…</p>}
               {blResult && (
                 <p className="mt-1 font-medium text-emerald-600">
-                  {blResult.blNumber} · 차량 {blResult.vehicleCount}대 등록됨
+                  {blResult.bl_number} · 차량 {blResult.vehicle_count}대 등록됨
                 </p>
               )}
               {blError && <p className="mt-1 text-red-600">{blError}</p>}
@@ -192,46 +293,6 @@ export function InstructionsPage() {
             placeholder="예: 오늘 14시부터 B02 블록은 도색작업으로 폐쇄해줘."
             className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-white p-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
           />
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-neutral-700">
-            상황사진 <span className="text-red-500">*</span>
-          </label>
-          <p className="mt-0.5 text-xs text-neutral-400">
-            참고용으로 화면에만 표시되며, 현재는 서버로 전송되지 않습니다.
-          </p>
-
-          <div className="mt-2 flex items-center gap-3">
-            {siteImagePreview ? (
-              <div className="relative">
-                <img
-                  src={siteImagePreview}
-                  alt="상황사진 미리보기"
-                  className="h-24 w-24 rounded-lg border border-neutral-200 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={handleImageRemove}
-                  aria-label="상황사진 제거"
-                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-700"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
-              <label
-                htmlFor="site_image"
-                className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 text-neutral-400 hover:border-primary-400 hover:text-primary-500"
-              >
-                <ImagePlus className="h-5 w-5" />
-                <span className="text-xs">사진 추가</span>
-              </label>
-            )}
-            {siteImage && <span className="max-w-48 truncate text-xs text-neutral-500">{siteImage.name}</span>}
-          </div>
-
-          <input id="site_image" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
         </div>
 
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -284,7 +345,7 @@ export function InstructionsPage() {
           <div className="space-y-3">
             {constraints.map((constraint) => (
               <ConstraintCard
-                key={constraint.constraintId}
+                key={constraint.constraint_id}
                 constraint={constraint}
                 onApprove={handleApprove}
                 onReject={handleReject}

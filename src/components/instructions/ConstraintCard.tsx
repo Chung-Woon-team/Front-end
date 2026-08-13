@@ -41,11 +41,11 @@ function formatValue(value: unknown): string {
 }
 
 function describeConstraint(constraint: ConstraintSummary): string {
-  const target = safeParseJson(constraint.targetJson);
+  const target = safeParseJson(constraint.target_json);
   if (constraint.type === 'BLOCK_CLOSURE' && target?.block_ids) {
     return `${formatValue(target.block_ids)} 블록 폐쇄`;
   }
-  const value = safeParseJson(constraint.valueJson);
+  const value = safeParseJson(constraint.value_json);
   const parts = [
     ...(target ? Object.entries(target).map(([key, val]) => `${key}: ${formatValue(val)}`) : []),
     ...(value ? Object.entries(value).map(([key, val]) => `${key}: ${formatValue(val)}`) : []),
@@ -94,7 +94,7 @@ export function ConstraintCard({ constraint, onApprove, onReject }: ConstraintCa
 
   const submitReject = () => {
     if (!reason.trim()) return;
-    onReject(constraint.constraintId, reason.trim());
+    onReject(constraint.constraint_id, reason.trim());
     setIsRejecting(false);
     setReason('');
   };
@@ -116,14 +116,14 @@ export function ConstraintCard({ constraint, onApprove, onReject }: ConstraintCa
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-400">
         <span>신뢰도 {Math.round(constraint.confidence * 100)}%</span>
-        {constraint.rejectionReason && <span>반려 사유: {constraint.rejectionReason}</span>}
+        {constraint.rejection_reason && <span>반려 사유: {constraint.rejection_reason}</span>}
       </div>
 
       {isPending && !isRejecting && (
         <div className="mt-4 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onApprove(constraint.constraintId)}
+            onClick={() => onApprove(constraint.constraint_id)}
             className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
           >
             <Check className="h-3.5 w-3.5" />
