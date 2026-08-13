@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, RefreshCw, Zap } from 'lucide-react';
+import { CheckCircle2, Loader2, RefreshCw, Zap } from 'lucide-react';
 import { YardScene } from '../components/yard/YardScene';
 import { LEGEND } from '../api/yard';
 import { fetchLiveYardView, runLiveRelocation } from '../api/yardLive';
+import { approvePlan } from '../api/plan';
 import type { VehicleMove, YardView } from '../types/yard';
 
 interface RelocationStats {
@@ -21,6 +22,9 @@ export function YardPage() {
   const [relocateError, setRelocateError] = useState<string | null>(null);
   const [stats, setStats] = useState<RelocationStats | null>(null);
   const [moves, setMoves] = useState<VehicleMove[]>([]);
+  const [pendingPlanVersion, setPendingPlanVersion] = useState<string | null>(null);
+  const [approvedPlanVersion, setApprovedPlanVersion] = useState<string | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
 
   const loadYard = () => {
     fetchLiveYardView()
@@ -28,6 +32,7 @@ export function YardPage() {
         setYardView(view);
         setStats(null);
         setMoves([]);
+        setPendingPlanVersion(null);
       })
       .catch((err: unknown) => {
         setLoadError(err instanceof Error ? err.message : '야드 데이터를 불러오지 못했습니다.');
@@ -40,6 +45,7 @@ export function YardPage() {
   }, []);
 
   const handleRefresh = () => {
+    if (pendingPlanVersion) return;
     setIsLoading(true);
     setLoadError(null);
     loadYard();
@@ -49,7 +55,7 @@ export function YardPage() {
   const totalSlots = yardView?.cells.length ?? 0;
 
   const handleRelocate = async () => {
-    if (!yardView || isRelocating) return;
+    if (!yardView || isRelocating || pendingPlanVersion) return;
     setIsRelocating(true);
     setRelocateError(null);
     try {
@@ -62,10 +68,30 @@ export function YardPage() {
         hardViolations: result.hardViolations,
         calcMs: result.calcMs,
       });
+      setPendingPlanVersion(result.yardView.plan_version);
+      setApprovedPlanVersion(null);
     } catch (err) {
       setRelocateError(err instanceof Error ? err.message : '재배치 계산에 실패했습니다.');
     } finally {
       setIsRelocating(false);
+    }
+  };
+
+  const handleApprovePlan = async () => {
+    if (!pendingPlanVersion || isApproving) return;
+    setIsApproving(true);
+    setRelocateError(null);
+    try {
+      const approved = await approvePlan(pendingPlanVersion, { reviewer: '야드관리자A' });
+      const confirmedYard = await fetchLiveYardView();
+      setYardView(confirmedYard);
+      setMoves([]);
+      setApprovedPlanVersion(approved.plan_version);
+      setPendingPlanVersion(null);
+    } catch (err) {
+      setRelocateError(err instanceof Error ? err.message : '알고리즘 결과 승인에 실패했습니다.');
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -92,17 +118,29 @@ export function YardPage() {
         <button
           type="button"
           onClick={handleRelocate}
-          disabled={!yardView || isRelocating}
+          disabled={!yardView || isRelocating || Boolean(pendingPlanVersion)}
           className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-40"
         >
           {isRelocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
           {isRelocating ? '재배치 계산 중…' : '재배치 실행'}
         </button>
 
+        {pendingPlanVersion && (
+          <button
+            type="button"
+            onClick={handleApprovePlan}
+            disabled={isApproving}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+          >
+            {isApproving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {isApproving ? '승인 반영 중…' : '알고리즘 승인'}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={handleRefresh}
-          disabled={isLoading}
+          disabled={isLoading || Boolean(pendingPlanVersion)}
           className="ml-auto flex items-center gap-1.5 rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-40"
         >
           <RefreshCw className="h-4 w-4" />
@@ -116,6 +154,12 @@ export function YardPage() {
       {relocateError && (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {relocateError}
+        </div>
+      )}
+      {approvedPlanVersion && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+          <CheckCircle2 className="h-4 w-4" />
+          플랜 {approvedPlanVersion}이(가) 승인되어 야드 상태에 반영됐습니다.
         </div>
       )}
 

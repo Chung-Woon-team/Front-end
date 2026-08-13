@@ -1,6 +1,17 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, ChartColumn, FileText, ImagePlus, Loader2, Route, Send, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  ChartColumn,
+  CheckCircle2,
+  FileText,
+  ImagePlus,
+  Loader2,
+  Route,
+  Send,
+  X,
+} from 'lucide-react';
 import { ConstraintCard } from '../components/instructions/ConstraintCard';
 import { extractBillOfLading } from '../api/billOfLading';
 import {
@@ -10,7 +21,7 @@ import {
   parseConstraints,
   rejectConstraint,
 } from '../api/instructions';
-import { createPlan, fetchPlan } from '../api/plan';
+import { approvePlan, createPlan, fetchPlan } from '../api/plan';
 import { checkYardOccupancy, confirmYardOccupancy } from '../api/yardApi';
 import type { BillOfLadingResult } from '../types/billOfLading';
 import type { ConstraintSummary } from '../types/instruction';
@@ -44,6 +55,8 @@ export function InstructionsPage() {
   const [blError, setBlError] = useState<string | null>(null);
   const [planResult, setPlanResult] = useState<ExecutionResult | null>(null);
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
+  const [isApprovingPlan, setIsApprovingPlan] = useState(false);
+  const [approvedPlanVersion, setApprovedPlanVersion] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
   const [showKpiConfirm, setShowKpiConfirm] = useState(false);
   const [planDetail, setPlanDetail] = useState<PlanDetail | null>(null);
@@ -171,6 +184,7 @@ export function InstructionsPage() {
       setUnresolved(outcome.unresolved);
       setRequiresConfirmation(outcome.requires_confirmation);
       setPlanResult(null);
+      setApprovedPlanVersion(null);
       setPlanError(null);
       setShowKpiConfirm(false);
       setPlanDetail(null);
@@ -199,6 +213,7 @@ export function InstructionsPage() {
     try {
       const result = await createPlan({ triggeredByInstructionId: instructionId });
       setPlanResult(result);
+      setApprovedPlanVersion(null);
       setShowKpiConfirm(true);
     } catch (err) {
       setPlanError(err instanceof Error ? err.message : '경로 생성에 실패했습니다.');
@@ -219,6 +234,21 @@ export function InstructionsPage() {
   };
 
   const handleCreateRoute = () => reflectApprovedConstraints();
+
+  const handleApprovePlan = async () => {
+    if (!planResult || isApprovingPlan || approvedPlanVersion === planResult.plan_version) return;
+    setIsApprovingPlan(true);
+    setPlanError(null);
+    try {
+      const approved = await approvePlan(planResult.plan_version, { reviewer: author.trim() || DEFAULT_AUTHOR });
+      setApprovedPlanVersion(approved.plan_version);
+      setPlanResult((current) => (current ? { ...current, status: approved.status } : current));
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : '알고리즘 결과 승인에 실패했습니다.');
+    } finally {
+      setIsApprovingPlan(false);
+    }
+  };
 
   const handleGoToYard = () => navigate('/yard');
 
@@ -534,14 +564,38 @@ export function InstructionsPage() {
                   </ul>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleGoToYard}
-                  className="mt-3 flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
-                >
-                  다음
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </button>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {approvedPlanVersion === planResult.plan_version ? (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                      <CheckCircle2 className="h-4 w-4" />
+                      승인되어 야드 상태에 반영됨
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleApprovePlan}
+                      disabled={isApprovingPlan}
+                      className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+                    >
+                      {isApprovingPlan ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      )}
+                      {isApprovingPlan ? '승인 반영 중…' : '알고리즘 승인'}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleGoToYard}
+                    disabled={approvedPlanVersion !== planResult.plan_version}
+                    className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    야드로 이동
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             )}
 
