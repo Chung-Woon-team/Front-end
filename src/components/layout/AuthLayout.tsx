@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { Activity, LayoutGrid, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../../hooks/useLanguage';
 import { onboardingText } from '../../i18n/onboarding';
+import logoHdg from '../../assets/logo_HDG.webp';
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -25,7 +25,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       </button>
 
       <div
-        className="relative hidden w-[54%] flex-col justify-between overflow-hidden bg-gradient-to-br from-primary-950 via-primary-900 to-primary-700 px-16 py-12 text-white lg:flex"
+        className="relative hidden w-[54%] flex-col overflow-hidden bg-gradient-to-br from-primary-950 via-primary-900 to-primary-700 px-16 py-12 text-white lg:flex"
         style={{ clipPath: 'polygon(0 0, 100% 0, 92% 100%, 0 100%)' }}
       >
         <div
@@ -38,30 +38,17 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         />
 
         <div className="relative flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
-            <LayoutGrid className="h-5 w-5" />
-          </div>
+          <img src={logoHdg} alt="Hyundai Glovis" className="h-7 w-auto brightness-0 invert" />
           <span className="text-lg font-semibold tracking-tight">AutoYard Copilot</span>
         </div>
 
-        <div className="relative">
+        <div className="relative flex flex-1 flex-col items-start justify-center">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             {text.badge}
           </span>
           <h1 className="mt-6 max-w-md text-4xl font-bold leading-tight">{text.headline}</h1>
           <p className="mt-4 max-w-sm text-sm text-white/70">{text.description}</p>
-        </div>
-
-        <div className="relative flex items-center gap-6 text-xs text-white/60">
-          <span className="flex items-center gap-1.5">
-            <ShieldCheck className="h-4 w-4" />
-            {text.partner}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Activity className="h-4 w-4" />
-            {text.sync}
-          </span>
         </div>
       </div>
 

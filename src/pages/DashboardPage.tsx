@@ -127,7 +127,7 @@ export function DashboardPage() {
         </span>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {STATS.map((stat) => (
           <div key={stat.label} className="rounded-xl border border-neutral-200 bg-white p-4">
             <div className="flex items-center justify-between">
@@ -148,8 +148,8 @@ export function DashboardPage() {
         ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-4">
-        <div className="col-span-2 rounded-xl border border-neutral-200 bg-white p-5">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-neutral-200 bg-white p-5 lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-neutral-900">블록 현황</h2>
@@ -158,7 +158,7 @@ export function DashboardPage() {
             <Gauge className="h-5 w-5 text-neutral-300" />
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {BLOCKS.map((block) => (
               <div key={block.blockId} className="rounded-lg border border-neutral-200 p-3">
                 <div className="flex items-center justify-between">

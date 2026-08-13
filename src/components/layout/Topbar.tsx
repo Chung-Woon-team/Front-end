@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, CircleUser, Plus, RefreshCw, RotateCcw, Search, Settings, X } from 'lucide-react';
+import { Bell, CircleUser, Menu, Plus, RefreshCw, Search, Settings, X } from 'lucide-react';
 import { CURRENT_USER_NAME } from '../../constants/user';
 
 function formatAccessTime(date: Date): string {
@@ -17,7 +17,11 @@ function formatAccessTime(date: Date): string {
   return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
 }
 
-export function Topbar() {
+interface TopbarProps {
+  onMenuClick: () => void;
+}
+
+export function Topbar({ onMenuClick }: TopbarProps) {
   const [showAlert, setShowAlert] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [accessTime] = useState(() => formatAccessTime(new Date()));
@@ -39,6 +43,15 @@ export function Topbar() {
       )}
 
       <header className="flex items-center gap-2 border-b border-neutral-200 bg-white px-3 py-3.5 sm:gap-4 sm:px-6">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="메뉴 열기"
+          className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+
         <div className="relative min-w-0 max-w-md flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <input
@@ -56,15 +69,9 @@ export function Topbar() {
             </button>
             <button
               type="button"
+              onClick={() => window.location.reload()}
               className="hidden rounded-lg p-2 hover:bg-neutral-100 sm:inline-flex"
-              aria-label="최근 기록"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="hidden rounded-lg p-2 hover:bg-neutral-100 sm:inline-flex"
-              aria-label="동기화"
+              aria-label="새로고침"
             >
               <RefreshCw className="h-4 w-4" />
             </button>

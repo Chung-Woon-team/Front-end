@@ -111,14 +111,14 @@ export function YardPage() {
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="변경 차량 수" value={stats ? `${stats.movedVehicleCount}` : '-'} />
         <StatCard label="계획 유지율" value={stats ? `${(stats.planRetentionRate * 100).toFixed(1)}%` : '100.0%'} />
         <StatCard label="HARD CONSTRAINT 위반" value={stats ? `${stats.hardViolations}` : '0'} tone="good" />
         <StatCard label="계산시간" value={stats ? `${stats.calcMs}ms` : '-'} />
       </div>
 
-      <div className="mt-4 h-[500px] overflow-hidden rounded-xl border border-neutral-200">
+      <div className="mt-4 h-[320px] overflow-hidden rounded-xl border border-neutral-200 sm:h-[420px] lg:h-[500px]">
         <YardScene yardView={yardView} moves={moves} />
       </div>
 

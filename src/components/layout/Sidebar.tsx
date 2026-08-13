@@ -4,17 +4,17 @@ import {
   CircleQuestionMark,
   FileText,
   Grid3x3,
-  LayoutDashboard,
-  LayoutGrid,
+  Home,
   LogOut,
   MessageSquareText,
   RefreshCw,
   RotateCcw,
   Settings,
 } from 'lucide-react';
+import logoHdg from '../../assets/logo_HDG.webp';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: '대시보드', icon: LayoutDashboard },
+  { to: '/dashboard', label: '대시보드', icon: Home },
   { to: '/instructions', label: '지시 관리', icon: MessageSquareText },
   { to: '/yard', label: '야드 배치', icon: Grid3x3 },
   { to: '/kpi', label: 'KPI', icon: ChartColumn },
@@ -23,72 +23,86 @@ const NAV_ITEMS = [
   { to: '/settings', label: '설정', icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navigate = useNavigate();
 
   return (
-    <aside className="flex h-screen w-72 shrink-0 flex-col bg-primary-950 text-white">
-      <div className="flex items-center gap-2.5 px-6 pt-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15">
-          <LayoutGrid className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-base font-semibold leading-tight">AutoYard Copilot</p>
-          <p className="text-xs text-white/50">관제 콘솔</p>
-        </div>
-      </div>
+    <>
+      {isOpen && (
+        <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={onClose} aria-hidden="true" />
+      )}
 
-      <nav className="mt-8 flex-1 space-y-1 px-4">
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                isActive ? 'bg-secondary-600 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
-              }`
-            }
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </NavLink>
-        ))}
-      </nav>
-
-      <div className="px-4">
-        <div className="rounded-xl bg-white/10 p-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary-600">
-              <RefreshCw className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-medium">AI 엔진 상태: 정상</span>
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex h-screen w-72 shrink-0 flex-col bg-primary-950 text-white transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center gap-2 px-6 pt-6">
+          <img src={logoHdg} alt="Hyundai Glovis" className="h-5 w-auto shrink-0 brightness-0 invert" />
+          <div>
+            <p className="whitespace-nowrap text-base font-semibold leading-tight">AutoYard Copilot</p>
+            <p className="text-xs text-white/50">관제 콘솔</p>
           </div>
+        </div>
+
+        <nav className="mt-8 flex-1 space-y-1 px-4">
+          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  isActive ? 'bg-secondary-600 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                }`
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="px-4">
+          <div className="rounded-xl bg-white/10 p-4">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary-600">
+                <RefreshCw className="h-4 w-4" />
+              </div>
+              <span className="text-sm font-medium">AI 엔진 상태: 정상</span>
+            </div>
+            <button
+              type="button"
+              className="mt-3 w-full rounded-lg bg-white py-2 text-sm font-semibold text-primary-900 hover:bg-white/90"
+            >
+              자세히 보기
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-1 border-t border-white/10 px-4 py-4">
           <button
             type="button"
-            className="mt-3 w-full rounded-lg bg-white py-2 text-sm font-semibold text-primary-900 hover:bg-white/90"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/60 hover:bg-white/10 hover:text-white"
           >
-            자세히 보기
+            <CircleQuestionMark className="h-4 w-4" />
+            도움말
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/60 hover:bg-white/10 hover:text-white"
+          >
+            <LogOut className="h-4 w-4" />
+            로그아웃
           </button>
         </div>
-      </div>
-
-      <div className="mt-6 space-y-1 border-t border-white/10 px-4 py-4">
-        <button
-          type="button"
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/60 hover:bg-white/10 hover:text-white"
-        >
-          <CircleQuestionMark className="h-4 w-4" />
-          도움말
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate('/login')}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/60 hover:bg-white/10 hover:text-white"
-        >
-          <LogOut className="h-4 w-4" />
-          로그아웃
-        </button>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
